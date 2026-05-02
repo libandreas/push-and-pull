@@ -205,3 +205,11 @@ The extension backend should stay small:
 Everything after that should be handled by `rclone`.
 
 The VS Code extension is the active implementation. The JetBrains plugin files are currently in construction and have not been tested yet with `runIde` or a packaged plugin build.
+
+## More
+
+See more smart solutions and practical programs on my website:
+
+```text
+https://ceres-assistant.com
+```
