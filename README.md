@@ -2,9 +2,11 @@
 
 Push & Pull is a deploy interface for VS Code and JetBrains IDEs (under development).
 
-It keeps the workflow simple: push files up, pull files down, and deploy without leaving the editor. Use `Ctrl+Up` to push/upload the current file and `Ctrl+Down` to pull/download it. On macOS, use `Cmd+Up` and `Cmd+Down`.
+It keeps the workflow simple: push files up, pull files down, and deploy without leaving the editor. Push & Pull adds upload/download context menus, editor toolbar icons, and shortcuts for fast file transfers. Use `Ctrl+Up` to push/upload the current file and `Ctrl+Down` to pull/download it. On macOS, use `Cmd+Up` and `Cmd+Down`.
 
 It is meant to feel quick and practical inside VS Code, like a tiny deploy cockpit for the files you are already editing.
+
+![Push & Pull screenshot](https://ceres-assistant.com/screenshots-raw/40.webp)
 
 ## Supported Protocols
 
