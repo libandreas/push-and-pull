@@ -209,3 +209,7 @@ The VS Code extension is the active implementation. The JetBrains plugin files a
 ## More
 
 See more smart solutions and practical tools at [ceres-assistant.com](https://ceres-assistant.com).
+
+## License
+
+Push & Pull is licensed under the GNU General Public License v3.0 or later.

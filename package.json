@@ -4,6 +4,15 @@
 	"description": "A deploy interface for pushing and pulling files with FTP, SFTP, FTPS, WebDAV, S3, S3-compatible storage, SMB, Swift, Azure Blob, Google Cloud Storage, Backblaze B2 and others inside your favorite IDE",
 	"version": "0.0.1",
 	"publisher": "local",
+	"license": "GPL-3.0-or-later",
+	"icon": "favicon.png",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/libandreas/push-and-pull.git"
+	},
+	"scripts": {
+		"build:vscode": "node build-vscode.mjs"
+	},
 	"engines": {
 		"vscode": "^1.85.0"
 	},
@@ -132,14 +141,14 @@
 			],
 			"editor/title": [
 				{
-					"command": "pushR.uploadFile",
-					"when": "resourceScheme == file",
-					"group": "navigation@50"
-				},
-				{
 					"command": "pushR.downloadFile",
 					"when": "resourceScheme == file",
-					"group": "navigation@51"
+					"group": "navigation@-9998"
+				},
+				{
+					"command": "pushR.uploadFile",
+					"when": "resourceScheme == file",
+					"group": "navigation@-9999"
 				}
 			]
 		}

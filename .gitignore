@@ -1,4 +1,19 @@
 rclone.conf
+*.rclone.conf
+*.rclone
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cert
+*.token
+*secret*
+*secrets*
+*password*
+*credentials*
 .vscode/
 .zed/
 .qodo/
@@ -11,3 +26,4 @@ out/
 node_modules/
 *.vsix
 .codex
+dist/
