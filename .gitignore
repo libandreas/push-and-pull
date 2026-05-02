@@ -1,0 +1,12 @@
+rclone.conf
+.vscode/
+.zed/
+.qodo/
+screenshots-raw/
+.gradle/
+build/
+out/
+.idea/
+*.iml
+node_modules/
+*.vsix

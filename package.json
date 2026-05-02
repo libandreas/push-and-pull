@@ -1,0 +1,147 @@
+{
+	"name": "push-and-pull",
+	"displayName": "Push & Pull",
+	"description": "A deploy interface for pushing and pulling files with FTP, SFTP, FTPS, WebDAV, S3, S3-compatible storage, SMB, Swift, Azure Blob, Google Cloud Storage, Backblaze B2 and others inside your favorite IDE",
+	"version": "0.0.1",
+	"publisher": "local",
+	"engines": {
+		"vscode": "^1.85.0"
+	},
+	"categories": [
+		"Other"
+	],
+	"activationEvents": [
+		"onCommand:pushR.uploadFile",
+		"onCommand:pushR.downloadFile",
+		"onCommand:pushR.uploadFolder",
+		"onCommand:pushR.downloadFolder"
+	],
+	"main": "./extension.js",
+	"contributes": {
+		"configuration": {
+			"title": "Push & Pull",
+			"properties": {
+				"pushPull.transfers": {
+					"type": "number",
+					"default": 4,
+					"minimum": 1,
+					"description": "Push & Pull rclone arg: --transfers. Number of file transfers to run in parallel."
+				},
+				"pushPull.checkers": {
+					"type": "number",
+					"default": 8,
+					"minimum": 1,
+					"description": "Push & Pull rclone arg: --checkers. Number of checkers to run in parallel while scanning and comparing files."
+				}
+			}
+		},
+		"commands": [
+			{
+				"command": "pushR.uploadFile",
+				"title": "Push (Upload)",
+					"icon": {
+						"light": "media/up.svg",
+						"dark": "media/up.svg"
+					}
+			},
+			{
+				"command": "pushR.downloadFile",
+				"title": "Pull (Download)",
+					"icon": {
+						"light": "media/down.svg",
+						"dark": "media/down.svg"
+				}
+			},
+			{
+				"command": "pushR.uploadFolder",
+				"title": "Push Folder (Upload)",
+					"icon": {
+						"light": "media/up.svg",
+						"dark": "media/up.svg"
+					}
+			},
+			{
+				"command": "pushR.downloadFolder",
+				"title": "Pull Folder (Download)",
+					"icon": {
+						"light": "media/down.svg",
+						"dark": "media/down.svg"
+					}
+			}
+		],
+		"keybindings": [
+			{
+				"command": "pushR.uploadFile",
+				"key": "ctrl+up",
+				"mac": "cmd+up",
+				"when": "editorTextFocus && resourceScheme == file"
+			},
+			{
+				"command": "pushR.downloadFile",
+				"key": "ctrl+down",
+				"mac": "cmd+down",
+				"when": "editorTextFocus && resourceScheme == file"
+			}
+		],
+		"menus": {
+			"explorer/context": [
+				{
+					"command": "pushR.uploadFile",
+					"when": "resourceScheme == file && explorerResourceIsFolder == false",
+					"group": "navigation@50"
+				},
+				{
+					"command": "pushR.downloadFile",
+					"when": "resourceScheme == file && explorerResourceIsFolder == false",
+					"group": "navigation@51"
+				},
+				{
+					"command": "pushR.uploadFolder",
+					"when": "resourceScheme == file && explorerResourceIsFolder == true",
+					"group": "navigation@52"
+				},
+				{
+					"command": "pushR.downloadFolder",
+					"when": "resourceScheme == file && explorerResourceIsFolder == true",
+					"group": "navigation@53"
+				}
+			],
+			"openEditors/context": [
+				{
+					"command": "pushR.uploadFile",
+					"when": "resourceScheme == file",
+					"group": "navigation@50"
+				},
+				{
+					"command": "pushR.downloadFile",
+					"when": "resourceScheme == file",
+					"group": "navigation@51"
+				}
+			],
+			"editor/context": [
+				{
+					"command": "pushR.uploadFile",
+					"when": "resourceScheme == file",
+					"group": "navigation@50"
+				},
+				{
+					"command": "pushR.downloadFile",
+					"when": "resourceScheme == file",
+					"group": "navigation@51"
+				}
+			],
+			"editor/title": [
+				{
+					"command": "pushR.uploadFile",
+					"when": "resourceScheme == file",
+					"group": "navigation@50"
+				},
+				{
+					"command": "pushR.downloadFile",
+					"when": "resourceScheme == file",
+					"group": "navigation@51"
+				}
+			]
+		}
+	}
+}

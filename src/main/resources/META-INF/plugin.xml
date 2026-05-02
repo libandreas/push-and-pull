@@ -1,0 +1,75 @@
+<idea-plugin>
+    <id>com.pushpull.deploy</id>
+    <name>Push &amp; Pull</name>
+    <vendor email="support@example.com" url="https://example.com">Push &amp; Pull</vendor>
+    <description><![CDATA[
+        A deploy interface for pushing and pulling files with FTP, SFTP, FTPS, WebDAV, S3, S3-compatible storage, SMB, Swift, Azure Blob, Google Cloud Storage, Backblaze B2 and others inside your favorite IDE.
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+    <depends>org.jetbrains.plugins.terminal</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <applicationConfigurable
+            parentId="tools"
+            instance="com.pushpull.PushPullConfigurable"
+            id="com.pushpull.settings"
+            displayName="Push &amp; Pull"/>
+    </extensions>
+
+    <actions>
+        <group
+            id="PushPull.ToolsMenu"
+            text="Push &amp; Pull"
+            popup="true"
+            icon="/icons/up.svg">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+            <reference ref="PushPull.PushFile"/>
+            <reference ref="PushPull.PullFile"/>
+            <reference ref="PushPull.PushFolder"/>
+            <reference ref="PushPull.PullFolder"/>
+        </group>
+
+        <action
+            id="PushPull.PushFile"
+            class="com.pushpull.PushFileAction"
+            text="Push (Upload)"
+            description="Upload the selected file with Push &amp; Pull"
+            icon="/icons/up.svg">
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+            <add-to-group group-id="MainToolBar" anchor="last"/>
+            <add-to-group group-id="MainToolbarRight" anchor="last"/>
+        </action>
+
+        <action
+            id="PushPull.PullFile"
+            class="com.pushpull.PullFileAction"
+            text="Pull (Download)"
+            description="Download the selected file with Push &amp; Pull"
+            icon="/icons/down.svg">
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+            <add-to-group group-id="MainToolBar" anchor="last"/>
+            <add-to-group group-id="MainToolbarRight" anchor="last"/>
+        </action>
+
+        <action
+            id="PushPull.PushFolder"
+            class="com.pushpull.PushFolderAction"
+            text="Push Folder (Upload)"
+            description="Upload the selected folder with Push &amp; Pull"
+            icon="/icons/up.svg">
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
+        </action>
+
+        <action
+            id="PushPull.PullFolder"
+            class="com.pushpull.PullFolderAction"
+            text="Pull Folder (Download)"
+            description="Download the selected folder with Push &amp; Pull"
+            icon="/icons/down.svg">
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
+        </action>
+    </actions>
+</idea-plugin>

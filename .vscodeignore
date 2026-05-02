@@ -1,0 +1,11 @@
+src/**
+build/**
+.gradle/**
+build.gradle.kts
+settings.gradle.kts
+gradle.properties
+*.iml
+.idea/**
+test/**
+test-*.html
+rclone.conf
