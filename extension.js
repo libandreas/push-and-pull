@@ -9,90 +9,114 @@ let terminal;
 
 function activate(context) {
 	context.subscriptions.push(
-		vscode.commands.registerCommand("pushR.uploadFile", (uri) => {
-			runRclone("upload", uri);
+		vscode.commands.registerCommand("pushR.uploadFile", (uri, selectedUris) => {
+			runRcloneMany("upload", uri, selectedUris, vscode.FileType.File);
 		}),
-		vscode.commands.registerCommand("pushR.downloadFile", (uri) => {
-			runRclone("download", uri);
+		vscode.commands.registerCommand("pushR.downloadFile", (uri, selectedUris) => {
+			runRcloneMany("download", uri, selectedUris, vscode.FileType.File);
 		}),
-		vscode.commands.registerCommand("pushR.uploadFolder", (uri) => {
-			runRclone("upload", uri, vscode.FileType.Directory);
+		vscode.commands.registerCommand("pushR.uploadFolder", (uri, selectedUris) => {
+			runRcloneMany("upload", uri, selectedUris, vscode.FileType.Directory);
 		}),
-		vscode.commands.registerCommand("pushR.downloadFolder", (uri) => {
-			runRclone("download", uri, vscode.FileType.Directory);
+		vscode.commands.registerCommand("pushR.downloadFolder", (uri, selectedUris) => {
+			runRcloneMany("download", uri, selectedUris, vscode.FileType.Directory);
 		})
 	);
 }
 
-async function runRclone(action, uri, expectedType = vscode.FileType.File) {
-	const fileUri = getFileUri(uri);
+async function runRcloneMany(action, uri, selectedUris, expectedType = vscode.FileType.File) {
+	const itemUris = getSelectedFileUris(uri, selectedUris);
 
-	if (!fileUri) {
+	if (!itemUris.length) {
 		vscode.window.showWarningMessage(expectedType === vscode.FileType.Directory
 			? "Select a folder first."
 			: "Open or select a file first.");
 		return;
 	}
 
-	const workspaceFolder = vscode.workspace.getWorkspaceFolder(fileUri);
+	const items = [];
 
-	if (!workspaceFolder) {
-		vscode.window.showWarningMessage("The selected file is not inside this workspace.");
-		return;
-	}
-
-	const stat = await vscode.workspace.fs.stat(fileUri);
-
-	if (stat.type !== expectedType) {
-		vscode.window.showWarningMessage(expectedType === vscode.FileType.Directory
-			? "This action is available for folders only."
-			: "This action is available for files only.");
-		return;
-	}
-
-	const workspacePath = workspaceFolder.uri.fsPath;
-	const relativePath = path.relative(workspacePath, fileUri.fsPath);
 	const shellKind = getShellKind();
 
-	if (!relativePath || relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-		vscode.window.showWarningMessage("Could not make a workspace-relative file path.");
-		return;
+	for (const itemUri of itemUris) {
+		const workspaceFolder = vscode.workspace.getWorkspaceFolder(itemUri);
+
+		if (!workspaceFolder) {
+			vscode.window.showWarningMessage("Every selected item must be inside this workspace.");
+			return;
+		}
+
+		const stat = await vscode.workspace.fs.stat(itemUri);
+
+		if (stat.type !== expectedType) {
+			vscode.window.showWarningMessage(expectedType === vscode.FileType.Directory
+				? "Please select only folders for this action."
+				: "Please select only files for this action.");
+			return;
+		}
+
+		const workspacePath = workspaceFolder.uri.fsPath;
+		const relativePath = path.relative(workspacePath, itemUri.fsPath);
+
+		if (!relativePath || relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
+			vscode.window.showWarningMessage("Could not make a workspace-relative file path.");
+			return;
+		}
+
+		items.push({
+			workspacePath,
+			relativePath
+		});
 	}
 
+	const workspacePaths = [...new Set(items.map((item) => item.workspacePath))];
+
 	try {
-		await makeRclonePasswd(workspacePath);
+		for (const workspacePath of workspacePaths) {
+			await makeRclonePasswd(workspacePath);
+		}
 	} catch (error) {
 		vscode.window.showErrorMessage(`Could not update rclone password: ${error.message}`);
 		return;
 	}
 
-	let command;
+	const commands = [];
 
 	try {
-		command = action === "upload"
-			? buildUploadCommand(workspacePath, relativePath, shellKind, expectedType)
-			: buildDownloadCommand(workspacePath, relativePath, shellKind, expectedType);
+		for (const item of items) {
+			commands.push(action === "upload"
+				? buildUploadCommand(item.workspacePath, item.relativePath, shellKind, expectedType)
+				: buildDownloadCommand(item.workspacePath, item.relativePath, shellKind, expectedType));
+		}
 	} catch (error) {
 		vscode.window.showErrorMessage(error.message);
 		return;
 	}
 
-	getTerminal().show();
-	getTerminal().sendText(command);
+	const terminal = getTerminal();
+	terminal.show();
+
+	for (const command of commands) {
+		terminal.sendText(command);
+	}
 }
 
-function getFileUri(uri) {
+function getSelectedFileUris(uri, selectedUris) {
+	if (Array.isArray(selectedUris) && selectedUris.length) {
+		return selectedUris.filter((selectedUri) => selectedUri instanceof vscode.Uri);
+	}
+
 	if (uri instanceof vscode.Uri) {
-		return uri;
+		return [uri];
 	}
 
 	const activeEditor = vscode.window.activeTextEditor;
 
 	if (activeEditor?.document?.uri?.scheme === "file") {
-		return activeEditor.document.uri;
+		return [activeEditor.document.uri];
 	}
 
-	return undefined;
+	return [];
 }
 
 async function makeRclonePasswd(workspacePath) {
