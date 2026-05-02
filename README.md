@@ -26,15 +26,28 @@ Push & Pull can work with many production-friendly storage and deploy targets, i
 
 ## IDE Actions
 
-For files:
+Push & Pull adds visible IDE actions, not just command palette commands.
+
+For files, you can use:
+
+- Explorer file context menu
+- editor right-click context menu
+- editor title toolbar up/down icons
+- keyboard shortcuts
+
+File actions:
 
 - `Push (Upload)`
 - `Pull (Download)`
 
-For folders in the Explorer:
+For folders, right-click a folder in the Explorer:
 
 - `Push Folder (Upload)`
 - `Pull Folder (Download)`
+
+In VS Code, the editor title toolbar shows the up/down arrow icons for the current file when there is enough room in the editor header. If VS Code hides one of them, it is usually available in the editor title `...` menu.
+
+In JetBrains IDEs, the plugin is still under development. The planned actions are Project View context menu, editor context menu, Tools menu, and main toolbar actions.
 
 Editor shortcuts:
 
@@ -42,7 +55,7 @@ Editor shortcuts:
 - `Ctrl+Down`: pull/download the current file
 - macOS uses `Cmd+Up` and `Cmd+Down`
 
-The extension sends deploy commands into a IDE terminal named `Push & Pull`.
+The extension sends deploy commands into an IDE terminal named `Push & Pull`.
 
 ## Settings
 
