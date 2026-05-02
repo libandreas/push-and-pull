@@ -11,7 +11,8 @@
 		"url": "https://github.com/libandreas/push-and-pull.git"
 	},
 	"scripts": {
-		"build:vscode": "node build-vscode.mjs"
+		"build:vscode": "node build-vscode.mjs",
+		"build:jetbrains": "node build-jetbrains.mjs"
 	},
 	"engines": {
 		"vscode": "^1.85.0"

@@ -1,0 +1,82 @@
+import { existsSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { spawn } from "node:child_process";
+
+const __filename = fileURLToPath(import.meta.url);
+const repoRoot = path.dirname(__filename);
+
+async function main() {
+	const gradleCommand = getGradleCommand();
+
+	if (!gradleCommand) {
+		throw new Error(
+			"Gradle was not found. Install Gradle or add the Gradle Wrapper, then run this script again."
+		);
+	}
+
+	await run(gradleCommand.command, [...gradleCommand.args, "buildPlugin"]);
+}
+
+function getGradleCommand() {
+	const wrapper = process.platform === "win32" ? "gradlew.bat" : "gradlew";
+	const wrapperPath = path.join(repoRoot, wrapper);
+
+	if (existsSync(wrapperPath)) {
+		return {
+			command: wrapperPath,
+			args: []
+		};
+	}
+
+	const gradlePath = findOnPath(process.platform === "win32" ? "gradle.bat" : "gradle") ||
+		findOnPath("gradle");
+
+	if (gradlePath) {
+		return {
+			command: gradlePath,
+			args: []
+		};
+	}
+
+	return undefined;
+}
+
+function findOnPath(fileName) {
+	const pathEntries = (process.env.PATH || process.env.Path || "")
+		.split(path.delimiter)
+		.filter(Boolean);
+
+	for (const entry of pathEntries) {
+		const candidate = path.join(entry, fileName);
+		if (existsSync(candidate)) {
+			return candidate;
+		}
+	}
+
+	return undefined;
+}
+
+function run(command, args) {
+	return new Promise((resolve, reject) => {
+		const child = spawn(command, args, {
+			cwd: repoRoot,
+			stdio: "inherit"
+		});
+
+		child.on("error", reject);
+		child.on("exit", (code) => {
+			if (code === 0) {
+				resolve();
+				return;
+			}
+
+			reject(new Error(`${command} exited with code ${code}`));
+		});
+	});
+}
+
+main().catch((error) => {
+	console.error(error.message || error);
+	process.exitCode = 1;
+});
