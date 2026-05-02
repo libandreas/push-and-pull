@@ -10,3 +10,4 @@ out/
 *.iml
 node_modules/
 *.vsix
+.codex
