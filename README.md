@@ -1,4 +1,4 @@
-# Push & Pull
+# Push & Pull ⬆⬇
 
 Push & Pull is a deploy interface for VS Code and JetBrains IDEs (under development).
 
@@ -125,8 +125,6 @@ pass-visible = your-password
 pass = generated-by-rclone
 ```
 
-It does not remove `pass-visible`.
-
 ## Command Examples
 
 Upload a file:
@@ -186,6 +184,8 @@ After installing, restart VS Code or open a new terminal and check:
 ```bash
 rclone version
 ```
+
+Push it when it feels right. Pull it before things get messy. 😂
 
 ## Contributing
 
