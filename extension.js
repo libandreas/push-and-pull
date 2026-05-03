@@ -71,7 +71,7 @@ async function runRcloneMany(action, uri, selectedUris, expectedType = vscode.Fi
 	}
 
 	if (action === "upload" && !getPushErrorsEnabled()) {
-		const blockingDiagnostics = getUploadBlockingDiagnostics(items, expectedType);
+		const blockingDiagnostics = getUploadBlockingDiagnosticsOrContinue(items, expectedType);
 
 		if (blockingDiagnostics.length) {
 			vscode.window.showErrorMessage(formatUploadBlockedMessage(blockingDiagnostics, expectedType));
@@ -127,6 +127,14 @@ function getSelectedFileUris(uri, selectedUris) {
 	}
 
 	return [];
+}
+
+function getUploadBlockingDiagnosticsOrContinue(items, resourceType) {
+	try {
+		return getUploadBlockingDiagnostics(items, resourceType);
+	} catch {
+		return [];
+	}
 }
 
 function getUploadBlockingDiagnostics(items, resourceType) {

@@ -136,7 +136,7 @@ abstract class PushPullAction(
             val settings = PushPullSettings.getInstance().state
 
             if (direction == Direction.Push && !settings.pushErrors) {
-                val blockingFile = findFirstFileWithFatalProblems(project, file)
+                val blockingFile = findFirstFileWithFatalProblemsOrContinue(project, file)
 
                 if (blockingFile != null) {
                     Messages.showErrorDialog(
@@ -208,6 +208,13 @@ abstract class PushPullAction(
     private fun shellQuote(value: String): String =
         "'${value.replace("'", "'\"'\"'")}'"
 }
+
+private fun findFirstFileWithFatalProblemsOrContinue(project: Project, file: VirtualFile): VirtualFile? =
+    try {
+        findFirstFileWithFatalProblems(project, file)
+    } catch (_: Exception) {
+        null
+    }
 
 private fun findFirstFileWithFatalProblems(project: Project, file: VirtualFile): VirtualFile? {
     if (!file.isDirectory) {

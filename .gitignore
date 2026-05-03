@@ -26,4 +26,5 @@ out/
 node_modules/
 *.vsix
 .codex
+.skia
 dist/
