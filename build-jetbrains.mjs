@@ -5,6 +5,7 @@ import { spawn } from "node:child_process";
 
 const __filename = fileURLToPath(import.meta.url);
 const repoRoot = path.dirname(__filename);
+const backupDistDir = "H:\\Το Drive μου\\ceres-assistant.com - Builds\\dist";
 
 async function main() {
 	const gradleCommand = getGradleCommand();
@@ -16,6 +17,7 @@ async function main() {
 	}
 
 	await run(gradleCommand.command, [...gradleCommand.args, "buildPlugin"]);
+	await copyJetBrainsBackups();
 }
 
 function getGradleCommand() {
@@ -74,6 +76,29 @@ function run(command, args) {
 			reject(new Error(`${command} exited with code ${code}`));
 		});
 	});
+}
+
+async function copyJetBrainsBackups() {
+	const { copyFile, mkdir, readdir } = await import("node:fs/promises");
+	const distributionsDir = path.join(repoRoot, "build", "distributions");
+
+	if (!existsSync(distributionsDir)) {
+		return;
+	}
+
+	await mkdir(backupDistDir, { recursive: true });
+	const dirents = await readdir(distributionsDir, { withFileTypes: true });
+
+	for (const dirent of dirents) {
+		if (!dirent.isFile() || !dirent.name.endsWith(".zip")) {
+			continue;
+		}
+
+		const sourcePath = path.join(distributionsDir, dirent.name);
+		const backupPath = path.join(backupDistDir, dirent.name);
+		await copyFile(sourcePath, backupPath);
+		console.log(`Backup package: ${backupPath}`);
+	}
 }
 
 main().catch((error) => {

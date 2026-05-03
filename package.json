@@ -42,6 +42,11 @@
 					"default": 8,
 					"minimum": 1,
 					"description": "Push & Pull rclone arg: --checkers. Number of checkers to run in parallel while scanning and comparing files."
+				},
+				"pushPull.pushErrors": {
+					"type": "boolean",
+					"default": false,
+					"description": "Push files even when VS Code Problems contains errors for the selected file or folder."
 				}
 			}
 		},

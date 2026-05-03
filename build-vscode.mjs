@@ -7,12 +7,14 @@ import { spawn } from "node:child_process";
 const __filename = fileURLToPath(import.meta.url);
 const repoRoot = path.dirname(__filename);
 const distDir = path.join(repoRoot, "dist");
+const backupDistDir = "H:\\Το Drive μου\\ceres-assistant.com - Builds\\dist";
 
 async function main() {
 	await rm(distDir, { recursive: true, force: true });
 	await mkdir(distDir, { recursive: true });
 
 	await runVscePackage();
+	await copyBuildBackups([".vsix"]);
 }
 
 async function runVscePackage() {
@@ -73,6 +75,23 @@ function run(command, args) {
 			reject(new Error(`${command} exited with code ${code}`));
 		});
 	});
+}
+
+async function copyBuildBackups(extensions) {
+	await mkdir(backupDistDir, { recursive: true });
+	const { readdir, copyFile } = await import("node:fs/promises");
+	const dirents = await readdir(distDir, { withFileTypes: true });
+
+	for (const dirent of dirents) {
+		if (!dirent.isFile() || !extensions.some((extension) => dirent.name.endsWith(extension))) {
+			continue;
+		}
+
+		const sourcePath = path.join(distDir, dirent.name);
+		const backupPath = path.join(backupDistDir, dirent.name);
+		await copyFile(sourcePath, backupPath);
+		console.log(`Backup package: ${backupPath}`);
+	}
 }
 
 main().catch((error) => {

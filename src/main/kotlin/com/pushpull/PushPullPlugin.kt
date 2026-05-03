@@ -4,15 +4,19 @@ import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.codeInsight.daemon.impl.DaemonCodeAnalyzerImpl
+import com.intellij.lang.annotation.HighlightSeverity
 import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.State
 import com.intellij.openapi.components.Storage
+import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.options.Configurable
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.ui.dsl.builder.bindIntText
+import com.intellij.ui.dsl.builder.bindSelected
 import com.intellij.ui.dsl.builder.panel
 import org.jetbrains.plugins.terminal.TerminalToolWindowManager
 import java.nio.file.Files
@@ -26,6 +30,7 @@ class PushPullSettings : PersistentStateComponent<PushPullSettings.State> {
     data class State(
         var transfers: Int = 4,
         var checkers: Int = 8,
+        var pushErrors: Boolean = false,
     )
 
     private var currentState = State()
@@ -46,6 +51,7 @@ class PushPullConfigurable : Configurable {
     private val settings = PushPullSettings.getInstance()
     private var transfers = settings.state.transfers
     private var checkers = settings.state.checkers
+    private var pushErrors = settings.state.pushErrors
 
     override fun getDisplayName(): String = "Push & Pull"
 
@@ -54,27 +60,38 @@ class PushPullConfigurable : Configurable {
             row("Transfers") {
                 intTextField(1..128)
                     .bindIntText(::transfers)
-                    .comment("rclone --transfers. Default: 4.")
+                    .comment("Maximum parallel uploads/downloads. rclone --transfers. Default: 4.")
             }
             row("Checkers") {
                 intTextField(1..256)
                     .bindIntText(::checkers)
-                    .comment("rclone --checkers. Default: 8.")
+                    .comment("How many files rclone checks while scanning and comparing. Default: 8.")
+            }
+        }
+        group("Upload Rules") {
+            row {
+                checkBox("Push Errors")
+                    .bindSelected(::pushErrors)
+                    .comment("Upload files even when IDE Problems contains errors for the selected file or folder.")
             }
         }
     }
 
     override fun isModified(): Boolean =
-        transfers != settings.state.transfers || checkers != settings.state.checkers
+        transfers != settings.state.transfers ||
+            checkers != settings.state.checkers ||
+            pushErrors != settings.state.pushErrors
 
     override fun apply() {
         settings.state.transfers = transfers.coerceAtLeast(1)
         settings.state.checkers = checkers.coerceAtLeast(1)
+        settings.state.pushErrors = pushErrors
     }
 
     override fun reset() {
         transfers = settings.state.transfers
         checkers = settings.state.checkers
+        pushErrors = settings.state.pushErrors
     }
 }
 
@@ -116,6 +133,22 @@ abstract class PushPullAction(
         }
 
         try {
+            val settings = PushPullSettings.getInstance().state
+
+            if (direction == Direction.Push && !settings.pushErrors) {
+                val blockingFile = findFirstFileWithFatalProblems(project, file)
+
+                if (blockingFile != null) {
+                    Messages.showErrorDialog(
+                        project,
+                        "Errors found in IDE Problems. Upload skipped: ${blockingFile.path}\n\n" +
+                            "You can allow this in Settings by enabling Push & Pull: Push Errors.",
+                        "Push & Pull",
+                    )
+                    return
+                }
+            }
+
             makeRclonePasswd(Path.of(basePath))
             openTerminal(project, basePath, buildRcloneCommand(Path.of(basePath), file))
         } catch (error: Exception) {
@@ -175,6 +208,31 @@ abstract class PushPullAction(
     private fun shellQuote(value: String): String =
         "'${value.replace("'", "'\"'\"'")}'"
 }
+
+private fun findFirstFileWithFatalProblems(project: Project, file: VirtualFile): VirtualFile? {
+    if (!file.isDirectory) {
+        return if (hasFatalProblems(project, file)) file else null
+    }
+
+    for (child in file.children) {
+        val blockingFile = findFirstFileWithFatalProblems(project, child)
+
+        if (blockingFile != null) {
+            return blockingFile
+        }
+    }
+
+    return null
+}
+
+private fun hasFatalProblems(project: Project, file: VirtualFile): Boolean =
+    ApplicationManager.getApplication().runReadAction<Boolean> {
+        val document = FileDocumentManager.getInstance().getDocument(file) ?: return@runReadAction false
+
+        DaemonCodeAnalyzerImpl
+            .getHighlights(document, HighlightSeverity.ERROR, project)
+            .any { it.severity == HighlightSeverity.ERROR }
+    }
 
 private fun makeRclonePasswd(projectRoot: Path) {
     val configPath = projectRoot.resolve("rclone.conf")
