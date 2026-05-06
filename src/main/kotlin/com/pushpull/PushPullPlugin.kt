@@ -21,7 +21,6 @@ import com.intellij.ui.dsl.builder.panel
 import org.jetbrains.plugins.terminal.TerminalToolWindowManager
 import java.nio.file.Files
 import java.nio.file.Path
-import kotlin.io.path.relativeTo
 import javax.swing.JComponent
 
 @Service(Service.Level.APP)
@@ -125,15 +124,19 @@ abstract class PushPullAction(
     override fun actionPerformed(event: AnActionEvent) {
         val project = event.project ?: return
         val file = event.getData(CommonDataKeys.VIRTUAL_FILE) ?: return
-        val basePath = project.basePath
-
-        if (basePath.isNullOrBlank()) {
-            Messages.showWarningDialog(project, "Project base path was not found.", "Push & Pull")
-            return
-        }
 
         try {
             val settings = PushPullSettings.getInstance().state
+            val transferRoot = resolveTransferRoot(project, file)
+
+            if (transferRoot == null) {
+                Messages.showWarningDialog(
+                    project,
+                    "Could not find rclone.conf for this item. Put rclone.conf in this file's project root or open the correct project.",
+                    "Push & Pull",
+                )
+                return
+            }
 
             if (direction == Direction.Push && !settings.pushErrors) {
                 val blockingFile = findFirstFileWithFatalProblemsOrContinue(project, file)
@@ -149,19 +152,56 @@ abstract class PushPullAction(
                 }
             }
 
-            makeRclonePasswd(Path.of(basePath))
-            openTerminal(project, basePath, buildRcloneCommand(Path.of(basePath), file))
+            makeRclonePasswd(transferRoot.rootPath, transferRoot.configPath)
+            openTerminal(project, transferRoot.rootPath.toString(), buildRcloneCommand(transferRoot, file))
         } catch (error: Exception) {
             Messages.showErrorDialog(project, error.message ?: "Push & Pull failed.", "Push & Pull")
         }
     }
 
-    private fun buildRcloneCommand(projectRoot: Path, file: VirtualFile): String {
+    private fun resolveTransferRoot(project: Project, file: VirtualFile): TransferRoot? {
+        val localPath = Path.of(file.path).toAbsolutePath().normalize()
+        val projectRoot = project.basePath
+            ?.takeUnless { it.isBlank() }
+            ?.let { Path.of(it).toAbsolutePath().normalize() }
+        val rootPath = if (projectRoot != null && localPath.startsWith(projectRoot)) {
+            projectRoot
+        } else {
+            findRcloneRoot(localPath, file.isDirectory)
+        } ?: return null
+        val relativePath = rootPath.relativize(localPath).toString()
+
+        if (relativePath.isBlank() || relativePath.startsWith("..") || Path.of(relativePath).isAbsolute) {
+            throw IllegalStateException("Could not make a project-relative file path.")
+        }
+
+        return TransferRoot(
+            rootPath = rootPath,
+            configPath = rootPath.resolve("rclone.conf"),
+            relativePath = relativePath,
+        )
+    }
+
+    private fun findRcloneRoot(itemPath: Path, isDirectory: Boolean): Path? {
+        var currentPath = if (isDirectory) itemPath else itemPath.parent
+
+        while (currentPath != null) {
+            if (Files.exists(currentPath.resolve("rclone.conf"))) {
+                return currentPath
+            }
+
+            currentPath = currentPath.parent
+        }
+
+        return null
+    }
+
+    private fun buildRcloneCommand(transferRoot: TransferRoot, file: VirtualFile): String {
         val settings = PushPullSettings.getInstance().state
-        val localPath = Path.of(file.path)
-        val relativePath = localPath.relativeTo(projectRoot).toString()
+        val localPath = Path.of(file.path).toAbsolutePath().normalize()
+        val relativePath = transferRoot.relativePath
         val remotePath = joinRemotePath("my-project:", relativePath)
-        val configPath = projectRoot.resolve("rclone.conf").toString()
+        val configPath = transferRoot.configPath.toString()
 
         val args = when (direction) {
             Direction.Push -> {
@@ -173,7 +213,7 @@ abstract class PushPullAction(
             }
             Direction.Pull -> {
                 val localTarget = when (target) {
-                    Target.File -> localPath.parent?.toString() ?: projectRoot.toString()
+                    Target.File -> localPath.parent?.toString() ?: transferRoot.rootPath.toString()
                     Target.Folder -> localPath.toString()
                 }
                 listOf("rclone", "--config", configPath, "copy", remotePath, localTarget)
@@ -209,6 +249,12 @@ abstract class PushPullAction(
         "'${value.replace("'", "'\"'\"'")}'"
 }
 
+private data class TransferRoot(
+    val rootPath: Path,
+    val configPath: Path,
+    val relativePath: String,
+)
+
 private fun findFirstFileWithFatalProblemsOrContinue(project: Project, file: VirtualFile): VirtualFile? =
     try {
         findFirstFileWithFatalProblems(project, file)
@@ -241,9 +287,7 @@ private fun hasFatalProblems(project: Project, file: VirtualFile): Boolean =
             .any { it.severity == HighlightSeverity.ERROR }
     }
 
-private fun makeRclonePasswd(projectRoot: Path) {
-    val configPath = projectRoot.resolve("rclone.conf")
-
+private fun makeRclonePasswd(projectRoot: Path, configPath: Path) {
     if (!Files.exists(configPath)) {
         return
     }

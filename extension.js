@@ -39,13 +39,6 @@ async function runRcloneMany(action, uri, selectedUris, expectedType = vscode.Fi
 	const shellKind = getShellKind();
 
 	for (const itemUri of itemUris) {
-		const workspaceFolder = vscode.workspace.getWorkspaceFolder(itemUri);
-
-		if (!workspaceFolder) {
-			vscode.window.showWarningMessage("Every selected item must be inside this workspace.");
-			return;
-		}
-
 		const stat = await vscode.workspace.fs.stat(itemUri);
 
 		if (stat.type !== expectedType) {
@@ -55,18 +48,25 @@ async function runRcloneMany(action, uri, selectedUris, expectedType = vscode.Fi
 			return;
 		}
 
-		const workspacePath = workspaceFolder.uri.fsPath;
-		const relativePath = path.relative(workspacePath, itemUri.fsPath);
+		let transferRoot;
 
-		if (!relativePath || relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
-			vscode.window.showWarningMessage("Could not make a workspace-relative file path.");
+		try {
+			transferRoot = await resolveTransferRoot(itemUri, expectedType);
+		} catch (error) {
+			vscode.window.showErrorMessage(error.message);
+			return;
+		}
+
+		if (!transferRoot) {
+			vscode.window.showWarningMessage("Could not find rclone.conf for this item. Put rclone.conf in this file's project root or open the correct workspace.");
 			return;
 		}
 
 		items.push({
 			uri: itemUri,
-			workspacePath,
-			relativePath
+			rootPath: transferRoot.rootPath,
+			configFile: transferRoot.configFile,
+			relativePath: transferRoot.relativePath
 		});
 	}
 
@@ -79,11 +79,11 @@ async function runRcloneMany(action, uri, selectedUris, expectedType = vscode.Fi
 		}
 	}
 
-	const workspacePaths = [...new Set(items.map((item) => item.workspacePath))];
+	const transferRoots = [...new Map(items.map((item) => [item.configFile, item])).values()];
 
 	try {
-		for (const workspacePath of workspacePaths) {
-			await makeRclonePasswd(workspacePath);
+		for (const item of transferRoots) {
+			await makeRclonePasswd(item.rootPath, item.configFile);
 		}
 	} catch (error) {
 		vscode.window.showErrorMessage(`Could not update rclone password: ${error.message}`);
@@ -95,8 +95,8 @@ async function runRcloneMany(action, uri, selectedUris, expectedType = vscode.Fi
 	try {
 		for (const item of items) {
 			commands.push(action === "upload"
-				? buildUploadCommand(item.workspacePath, item.relativePath, shellKind, expectedType)
-				: buildDownloadCommand(item.workspacePath, item.relativePath, shellKind, expectedType));
+				? buildUploadCommand(item.rootPath, item.configFile, item.relativePath, shellKind, expectedType)
+				: buildDownloadCommand(item.rootPath, item.configFile, item.relativePath, shellKind, expectedType));
 		}
 	} catch (error) {
 		vscode.window.showErrorMessage(error.message);
@@ -129,6 +129,52 @@ function getSelectedFileUris(uri, selectedUris) {
 	return [];
 }
 
+async function resolveTransferRoot(itemUri, resourceType) {
+	const workspaceFolder = vscode.workspace.getWorkspaceFolder(itemUri);
+	const rootPath = workspaceFolder?.uri.fsPath || await findRcloneRoot(itemUri.fsPath, resourceType);
+
+	if (!rootPath) {
+		return undefined;
+	}
+
+	const relativePath = path.relative(rootPath, itemUri.fsPath);
+
+	if (!relativePath || relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
+		throw new Error("Could not make a project-relative file path.");
+	}
+
+	return {
+		rootPath,
+		configFile: path.join(rootPath, "rclone.conf"),
+		relativePath
+	};
+}
+
+async function findRcloneRoot(itemPath, resourceType) {
+	let currentPath = resourceType === vscode.FileType.Directory ? itemPath : path.dirname(itemPath);
+
+	while (true) {
+		const configFile = path.join(currentPath, "rclone.conf");
+
+		try {
+			await fs.access(configFile);
+			return currentPath;
+		} catch (error) {
+			if (error.code !== "ENOENT") {
+				throw error;
+			}
+		}
+
+		const parentPath = path.dirname(currentPath);
+
+		if (parentPath === currentPath) {
+			return undefined;
+		}
+
+		currentPath = parentPath;
+	}
+}
+
 function getUploadBlockingDiagnosticsOrContinue(items, resourceType) {
 	try {
 		return getUploadBlockingDiagnostics(items, resourceType);
@@ -151,7 +197,7 @@ function getUploadBlockingDiagnostics(items, resourceType) {
 
 	const selectedFolders = items.map((item) => ({
 		uri: item.uri,
-		workspacePath: item.workspacePath,
+		rootPath: item.rootPath,
 		relativePath: item.relativePath
 	}));
 	const blockingDiagnostics = [];
@@ -167,7 +213,7 @@ function getUploadBlockingDiagnostics(items, resourceType) {
 			continue;
 		}
 
-		const relativePath = path.relative(selectedFolder.workspacePath, resourceUri.fsPath) || selectedFolder.relativePath;
+		const relativePath = path.relative(selectedFolder.rootPath, resourceUri.fsPath) || selectedFolder.relativePath;
 
 		for (const diagnostic of diagnostics.filter(isErrorDiagnostic)) {
 			blockingDiagnostics.push({
@@ -210,8 +256,7 @@ function getPushErrorsEnabled() {
 	return Boolean(vscode.workspace.getConfiguration("pushPull").get("pushErrors", false));
 }
 
-async function makeRclonePasswd(workspacePath) {
-	const configFile = path.join(workspacePath, "rclone.conf");
+async function makeRclonePasswd(rootPath, configFile) {
 	let text;
 
 	try {
@@ -240,7 +285,7 @@ async function makeRclonePasswd(workspacePath) {
 		}
 
 		const visiblePassword = lines[visibleIndex].replace(/^\s*pass-visible\s*=\s*/, "");
-		const obscuredPassword = await obscureRclonePassword(visiblePassword, workspacePath);
+		const obscuredPassword = await obscureRclonePassword(visiblePassword, rootPath);
 		const indent = lines[visibleIndex].match(/^(\s*)/)?.[1] || "";
 
 		for (let index = section.end - 1; index >= section.start; index -= 1) {
@@ -300,9 +345,8 @@ async function obscureRclonePassword(password, cwd) {
 	return stdout.trim();
 }
 
-function buildUploadCommand(workspacePath, relativePath, shellKind, resourceType) {
-	const configFile = path.join(workspacePath, "rclone.conf");
-	const localPath = path.join(workspacePath, relativePath);
+function buildUploadCommand(rootPath, configFile, relativePath, shellKind, resourceType) {
+	const localPath = path.join(rootPath, relativePath);
 	const remoteRoot = getRemoteRoot();
 	const remoteDir = resourceType === vscode.FileType.Directory
 		? joinRemotePath(remoteRoot, relativePath)
@@ -319,12 +363,11 @@ function buildUploadCommand(workspacePath, relativePath, shellKind, resourceType
 	].join(" ");
 }
 
-function buildDownloadCommand(workspacePath, relativePath, shellKind, resourceType) {
-	const configFile = path.join(workspacePath, "rclone.conf");
+function buildDownloadCommand(rootPath, configFile, relativePath, shellKind, resourceType) {
 	const remotePath = joinRemotePath(getRemoteRoot(), relativePath);
 	const localDir = resourceType === vscode.FileType.Directory
-		? path.join(workspacePath, relativePath)
-		: getLocalDir(workspacePath, relativePath);
+		? path.join(rootPath, relativePath)
+		: getLocalDir(rootPath, relativePath);
 
 	return [
 		"rclone",
@@ -343,10 +386,10 @@ function getRemoteDir(remoteRoot, relativePath) {
 	return remoteParent === "." ? remoteRoot : joinRemotePath(remoteRoot, remoteParent);
 }
 
-function getLocalDir(workspacePath, relativePath) {
+function getLocalDir(rootPath, relativePath) {
 	const localParent = path.dirname(relativePath);
 
-	return localParent === "." ? workspacePath : path.join(workspacePath, localParent);
+	return localParent === "." ? rootPath : path.join(rootPath, localParent);
 }
 
 function toRemotePath(value) {

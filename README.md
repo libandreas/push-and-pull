@@ -74,6 +74,8 @@ These control how many transfers and checks rclone runs in parallel. They work a
 
 Put `rclone.conf` in the project root.
 
+If you run Push & Pull on a file that is outside the currently opened IDE project or workspace, the extension walks upward from that file until it finds the nearest `rclone.conf`. That folder is treated as the project root for the transfer, and the terminal command uses full local paths so it can run correctly from any terminal location.
+
 Do not forget to add `rclone.conf` to your `.gitignore`, especially if it contains passwords, tokens, or `pass-visible`.
 
 Create a config file for your server in `rclone.conf`. The name inside brackets is your remote name. Users should choose their own names. In this example, the server remote is called `[my-server]`:
