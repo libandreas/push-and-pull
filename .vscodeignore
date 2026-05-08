@@ -5,6 +5,10 @@ build/**
 .zed/**
 .qodo/**
 screenshots-raw/**
+www/test-*
+www/demo-*
+common/errors-reporting-manual.js
+common/errors-reporting-manual.css
 rclone.conf
 *.rclone.conf
 *.rclone

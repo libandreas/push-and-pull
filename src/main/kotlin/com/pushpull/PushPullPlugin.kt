@@ -216,7 +216,7 @@ abstract class PushPullAction(
                     Target.File -> localPath.parent?.toString() ?: transferRoot.rootPath.toString()
                     Target.Folder -> localPath.toString()
                 }
-                listOf("rclone", "--config", configPath, "copy", remotePath, localTarget)
+                listOf("rclone", "--config", configPath, "copy", remotePath, localTarget, "--local-no-preallocate")
             }
         }
 

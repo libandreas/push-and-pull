@@ -376,6 +376,7 @@ function buildDownloadCommand(rootPath, configFile, relativePath, shellKind, res
 		"copy",
 		quoteShellArg(remotePath, shellKind),
 		quoteShellArg(localDir, shellKind),
+		"--local-no-preallocate",
 		...getDefaultRcloneArgs()
 	].join(" ");
 }

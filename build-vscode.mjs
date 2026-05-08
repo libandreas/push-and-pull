@@ -1,4 +1,4 @@
-import { mkdir, rm } from "node:fs/promises";
+import { mkdir, readFile, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -8,16 +8,31 @@ const __filename = fileURLToPath(import.meta.url);
 const repoRoot = path.dirname(__filename);
 const distDir = path.join(repoRoot, "dist");
 const backupDistDir = "H:\\Το Drive μου\\ceres-assistant.com - Builds\\dist";
+const variantSlug = "push-and-pull";
 
 async function main() {
+	const packageJson = await readPackageJson();
+	const outputPath = path.join(distDir, `${variantSlug}-vscode-${packageJson.version}.vsix`);
+
 	await rm(distDir, { recursive: true, force: true });
 	await mkdir(distDir, { recursive: true });
 
-	await runVscePackage();
+	await runVscePackage(outputPath);
 	await copyBuildBackups([".vsix"]);
 }
 
-async function runVscePackage() {
+async function readPackageJson() {
+	const packageRaw = await readFile(path.join(repoRoot, "package.json"), "utf8");
+	const packageJson = JSON.parse(packageRaw.replace(/^\uFEFF/, ""));
+
+	if (!packageJson.version) {
+		throw new Error("package.json is missing a version field.");
+	}
+
+	return packageJson;
+}
+
+async function runVscePackage(outputPath) {
 	if (process.platform === "win32") {
 		const npxPath = findOnPath("npx.cmd") || "npx.cmd";
 		await run("powershell.exe", [
@@ -25,7 +40,7 @@ async function runVscePackage() {
 			"-ExecutionPolicy",
 			"Bypass",
 			"-Command",
-			`& ${quotePowerShell(npxPath)} --yes @vscode/vsce package --out ${quotePowerShell(distDir)}`
+			`& ${quotePowerShell(npxPath)} --yes @vscode/vsce package --out ${quotePowerShell(outputPath)}`
 		]);
 		return;
 	}
@@ -35,7 +50,7 @@ async function runVscePackage() {
 		"@vscode/vsce",
 		"package",
 		"--out",
-		distDir
+		outputPath
 	]);
 }
 
