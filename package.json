@@ -2,7 +2,7 @@
 	"name": "push-and-pull",
 	"displayName": "Push & Pull",
 	"description": "A deploy interface for uploading and downloading files with FTP, SFTP, FTPS, WebDAV, S3, S3-compatible storage, SMB, Swift, Azure Blob, Google Cloud Storage, Backblaze B2 and others inside your favorite IDE",
-	"version": "0.0.1",
+	"version": "0.0.2",
 	"publisher": "pa-andreas",
 	"license": "GPL-3.0-or-later",
 	"icon": "favicon.png",
