@@ -2,10 +2,10 @@
 	"name": "push-and-pull",
 	"displayName": "Push & Pull",
 	"description": "A deploy interface for uploading and downloading files with FTP, SFTP, FTPS, WebDAV, S3, S3-compatible storage, SMB, Swift, Azure Blob, Google Cloud Storage, Backblaze B2 and others inside your favorite IDE",
-	"version": "0.0.2",
+	"version": "26.5.6",
 	"publisher": "pa-andreas",
 	"license": "GPL-3.0-or-later",
-	"icon": "favicon.png",
+	"icon": "favicon-4.png",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/libandreas/push-and-pull.git"
@@ -26,7 +26,7 @@
 		"onCommand:pushR.uploadFolder",
 		"onCommand:pushR.downloadFolder"
 	],
-	"main": "./extension.js",
+	"main": "./extension-4.js",
 	"contributes": {
 		"configuration": {
 			"title": "Push & Pull",
@@ -54,34 +54,34 @@
 			{
 				"command": "pushR.uploadFile",
 				"title": "Push (Upload)",
-					"icon": {
-						"light": "media/up.svg",
-						"dark": "media/up.svg"
-					}
+				"icon": {
+					"light": "media/up.svg",
+					"dark": "media/up.svg"
+				}
 			},
 			{
 				"command": "pushR.downloadFile",
 				"title": "Pull (Download)",
-					"icon": {
-						"light": "media/down.svg",
-						"dark": "media/down.svg"
+				"icon": {
+					"light": "media/down.svg",
+					"dark": "media/down.svg"
 				}
 			},
 			{
 				"command": "pushR.uploadFolder",
 				"title": "Push Folder (Upload)",
-					"icon": {
-						"light": "media/up.svg",
-						"dark": "media/up.svg"
-					}
+				"icon": {
+					"light": "media/up.svg",
+					"dark": "media/up.svg"
+				}
 			},
 			{
 				"command": "pushR.downloadFolder",
 				"title": "Pull Folder (Download)",
-					"icon": {
-						"light": "media/down.svg",
-						"dark": "media/down.svg"
-					}
+				"icon": {
+					"light": "media/down.svg",
+					"dark": "media/down.svg"
+				}
 			}
 		],
 		"keybindings": [
