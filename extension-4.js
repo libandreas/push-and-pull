@@ -94,9 +94,11 @@ async function runRcloneMany(action, uri, selectedUris, expectedType = vscode.Fi
 
 	try {
 		for (const item of items) {
+			const rcloneArgs = await getDefaultRcloneArgs(item.configFile);
+
 			commands.push(action === "upload"
-				? buildUploadCommand(item.rootPath, item.configFile, item.relativePath, shellKind, expectedType)
-				: buildDownloadCommand(item.rootPath, item.configFile, item.relativePath, shellKind, expectedType));
+				? buildUploadCommand(item.rootPath, item.configFile, item.relativePath, shellKind, expectedType, rcloneArgs)
+				: buildDownloadCommand(item.rootPath, item.configFile, item.relativePath, shellKind, expectedType, rcloneArgs));
 		}
 	} catch (error) {
 		vscode.window.showErrorMessage(error.message);
@@ -345,7 +347,7 @@ async function obscureRclonePassword(password, cwd) {
 	return stdout.trim();
 }
 
-function buildUploadCommand(rootPath, configFile, relativePath, shellKind, resourceType) {
+function buildUploadCommand(rootPath, configFile, relativePath, shellKind, resourceType, rcloneArgs) {
 	const localPath = path.join(rootPath, relativePath);
 	const remoteRoot = getRemoteRoot();
 	const remoteDir = resourceType === vscode.FileType.Directory
@@ -359,11 +361,11 @@ function buildUploadCommand(rootPath, configFile, relativePath, shellKind, resou
 		"copy",
 		quoteShellArg(localPath, shellKind),
 		quoteShellArg(remoteDir, shellKind),
-		...getDefaultRcloneArgs()
+		...rcloneArgs
 	].join(" ");
 }
 
-function buildDownloadCommand(rootPath, configFile, relativePath, shellKind, resourceType) {
+function buildDownloadCommand(rootPath, configFile, relativePath, shellKind, resourceType, rcloneArgs) {
 	const remotePath = joinRemotePath(getRemoteRoot(), relativePath);
 	const localDir = resourceType === vscode.FileType.Directory
 		? path.join(rootPath, relativePath)
@@ -377,7 +379,7 @@ function buildDownloadCommand(rootPath, configFile, relativePath, shellKind, res
 		quoteShellArg(remotePath, shellKind),
 		quoteShellArg(localDir, shellKind),
 		"--local-no-preallocate",
-		...getDefaultRcloneArgs()
+		...rcloneArgs
 	].join(" ");
 }
 
@@ -411,18 +413,94 @@ function joinRemotePath(remoteRoot, relativePath) {
 	return `${remoteRoot}/${cleanPath}`;
 }
 
-function getDefaultRcloneArgs() {
+async function getDefaultRcloneArgs(configFile) {
 	const config = vscode.workspace.getConfiguration("pushPull");
 	const transfers = Math.max(1, Number(config.get("transfers", 4)) || 4);
 	const checkers = Math.max(1, Number(config.get("checkers", 8)) || 8);
+	const args = [
+		"--progress",
+		"--ignore-size"
+	];
+
+	if (await isWebdavProjectRemote(configFile)) {
+		args.push("--ignore-times");
+	}
 
 	return [
-		"--progress",
+		...args,
 		"--transfers",
 		String(transfers),
 		"--checkers",
 		String(checkers)
 	];
+}
+
+async function isWebdavProjectRemote(configFile) {
+	const text = await fs.readFile(configFile, "utf8");
+	const sections = parseRcloneConfig(text);
+
+	return resolveRcloneRemoteType(sections, "my-project") === "webdav";
+}
+
+function parseRcloneConfig(text) {
+	const sections = new Map();
+	let currentSection;
+
+	for (const rawLine of text.split(/\r?\n/)) {
+		const line = rawLine.trim();
+
+		if (!line || line.startsWith("#") || line.startsWith(";")) {
+			continue;
+		}
+
+		const sectionMatch = line.match(/^\[([^\]]+)\]$/);
+
+		if (sectionMatch) {
+			currentSection = {};
+			sections.set(sectionMatch[1].trim(), currentSection);
+			continue;
+		}
+
+		const equalsIndex = line.indexOf("=");
+
+		if (!currentSection || equalsIndex === -1) {
+			continue;
+		}
+
+		const key = line.slice(0, equalsIndex).trim().toLowerCase();
+		const value = line.slice(equalsIndex + 1).trim();
+		currentSection[key] = value;
+	}
+
+	return sections;
+}
+
+function resolveRcloneRemoteType(sections, remoteName) {
+	let currentName = getRcloneRemoteName(remoteName);
+	const visited = new Set();
+
+	while (currentName && !visited.has(currentName)) {
+		visited.add(currentName);
+
+		const section = sections.get(currentName);
+		const type = section?.type?.toLowerCase();
+
+		if (!section || !type) {
+			return "";
+		}
+
+		if (type !== "alias") {
+			return type;
+		}
+
+		currentName = getRcloneRemoteName(section.remote);
+	}
+
+	return "";
+}
+
+function getRcloneRemoteName(remote) {
+	return String(remote || "").trim().split(":")[0];
 }
 
 function quoteShellArg(value, shellKind) {

@@ -23,9 +23,11 @@ import java.nio.file.Files
 import java.nio.file.Path
 import javax.swing.JComponent
 
+private const val pluginTitle = "Push & Pull"
+
 @Service(Service.Level.APP)
-@State(name = "PushPullSettings", storages = [Storage("push-pull.xml")])
-class PushPullSettings : PersistentStateComponent<PushPullSettings.State> {
+@State(name = "DeploySettings", storages = [Storage("deploy-settings.xml")])
+class Settings : PersistentStateComponent<Settings.State> {
     data class State(
         var transfers: Int = 4,
         var checkers: Int = 8,
@@ -41,18 +43,18 @@ class PushPullSettings : PersistentStateComponent<PushPullSettings.State> {
     }
 
     companion object {
-        fun getInstance(): PushPullSettings =
-            ApplicationManager.getApplication().getService(PushPullSettings::class.java)
+        fun getInstance(): Settings =
+            ApplicationManager.getApplication().getService(Settings::class.java)
     }
 }
 
-class PushPullConfigurable : Configurable {
-    private val settings = PushPullSettings.getInstance()
+class SettingsConfigurable : Configurable {
+    private val settings = Settings.getInstance()
     private var transfers = settings.state.transfers
     private var checkers = settings.state.checkers
     private var pushErrors = settings.state.pushErrors
 
-    override fun getDisplayName(): String = "Push & Pull"
+    override fun getDisplayName(): String = pluginTitle
 
     override fun createComponent(): JComponent = panel {
         group("Rclone Args") {
@@ -94,12 +96,12 @@ class PushPullConfigurable : Configurable {
     }
 }
 
-class PushFileAction : PushPullAction(Direction.Push, Target.File)
-class PullFileAction : PushPullAction(Direction.Pull, Target.File)
-class PushFolderAction : PushPullAction(Direction.Push, Target.Folder)
-class PullFolderAction : PushPullAction(Direction.Pull, Target.Folder)
+class PushFileAction : TransferAction(Direction.Push, Target.File)
+class PullFileAction : TransferAction(Direction.Pull, Target.File)
+class PushFolderAction : TransferAction(Direction.Push, Target.Folder)
+class PullFolderAction : TransferAction(Direction.Pull, Target.Folder)
 
-abstract class PushPullAction(
+abstract class TransferAction(
     private val direction: Direction,
     private val target: Target,
 ) : AnAction() {
@@ -126,14 +128,14 @@ abstract class PushPullAction(
         val file = event.getData(CommonDataKeys.VIRTUAL_FILE) ?: return
 
         try {
-            val settings = PushPullSettings.getInstance().state
+            val settings = Settings.getInstance().state
             val transferRoot = resolveTransferRoot(project, file)
 
             if (transferRoot == null) {
                 Messages.showWarningDialog(
                     project,
                     "Could not find rclone.conf for this item. Put rclone.conf in this file's project root or open the correct project.",
-                    "Push & Pull",
+                    pluginTitle,
                 )
                 return
             }
@@ -145,8 +147,8 @@ abstract class PushPullAction(
                     Messages.showErrorDialog(
                         project,
                         "Errors found in IDE Problems. Upload skipped: ${blockingFile.path}\n\n" +
-                            "You can allow this in Settings by enabling Push & Pull: Push Errors.",
-                        "Push & Pull",
+                            "You can allow this in Settings by enabling $pluginTitle: Push Errors.",
+                        pluginTitle,
                     )
                     return
                 }
@@ -155,7 +157,7 @@ abstract class PushPullAction(
             makeRclonePasswd(transferRoot.rootPath, transferRoot.configPath)
             openTerminal(project, transferRoot.rootPath.toString(), buildRcloneCommand(transferRoot, file))
         } catch (error: Exception) {
-            Messages.showErrorDialog(project, error.message ?: "Push & Pull failed.", "Push & Pull")
+            Messages.showErrorDialog(project, error.message ?: "$pluginTitle failed.", pluginTitle)
         }
     }
 
@@ -197,7 +199,7 @@ abstract class PushPullAction(
     }
 
     private fun buildRcloneCommand(transferRoot: TransferRoot, file: VirtualFile): String {
-        val settings = PushPullSettings.getInstance().state
+        val settings = Settings.getInstance().state
         val localPath = Path.of(file.path).toAbsolutePath().normalize()
         val relativePath = transferRoot.relativePath
         val remotePath = joinRemotePath("my-project:", relativePath)
@@ -220,18 +222,28 @@ abstract class PushPullAction(
             }
         }
 
-        return (args + listOf(
+        val defaultArgs = mutableListOf(
             "--progress",
+            "--ignore-size",
+        )
+
+        if (isWebdavProjectRemote(transferRoot.configPath)) {
+            defaultArgs += "--ignore-times"
+        }
+
+        defaultArgs += listOf(
             "--transfers",
             settings.transfers.coerceAtLeast(1).toString(),
             "--checkers",
             settings.checkers.coerceAtLeast(1).toString(),
-        )).joinToString(" ") { shellQuote(it) }
+        )
+
+        return (args + defaultArgs).joinToString(" ") { shellQuote(it) }
     }
 
     private fun openTerminal(project: Project, workingDirectory: String, command: String) {
         val terminal = TerminalToolWindowManager.getInstance(project)
-            .createLocalShellWidget(workingDirectory, "Push & Pull")
+            .createLocalShellWidget(workingDirectory, pluginTitle)
         terminal.executeCommand(command)
     }
 
@@ -248,6 +260,68 @@ abstract class PushPullAction(
     private fun shellQuote(value: String): String =
         "'${value.replace("'", "'\"'\"'")}'"
 }
+
+private fun isWebdavProjectRemote(configPath: Path): Boolean {
+    val sections = parseRcloneConfig(Files.readString(configPath))
+
+    return resolveRcloneRemoteType(sections, "my-project") == "webdav"
+}
+
+private fun parseRcloneConfig(text: String): Map<String, Map<String, String>> {
+    val sections = mutableMapOf<String, MutableMap<String, String>>()
+    var currentSection: MutableMap<String, String>? = null
+
+    for (rawLine in text.lines()) {
+        val line = rawLine.trim()
+
+        if (line.isBlank() || line.startsWith("#") || line.startsWith(";")) {
+            continue
+        }
+
+        val sectionMatch = Regex("""^\[([^\]]+)\]$""").matchEntire(line)
+
+        if (sectionMatch != null) {
+            currentSection = mutableMapOf()
+            sections[sectionMatch.groupValues[1].trim()] = currentSection
+            continue
+        }
+
+        val equalsIndex = line.indexOf("=")
+
+        if (currentSection == null || equalsIndex == -1) {
+            continue
+        }
+
+        val key = line.substring(0, equalsIndex).trim().lowercase()
+        val value = line.substring(equalsIndex + 1).trim()
+        currentSection[key] = value
+    }
+
+    return sections
+}
+
+private fun resolveRcloneRemoteType(sections: Map<String, Map<String, String>>, remoteName: String): String {
+    val visited = mutableSetOf<String>()
+    var currentName = rcloneRemoteName(remoteName)
+
+    while (currentName.isNotBlank() && currentName !in visited) {
+        visited += currentName
+
+        val section = sections[currentName] ?: return ""
+        val type = section["type"]?.lowercase() ?: return ""
+
+        if (type != "alias") {
+            return type
+        }
+
+        currentName = rcloneRemoteName(section["remote"].orEmpty())
+    }
+
+    return ""
+}
+
+private fun rcloneRemoteName(remote: String): String =
+    remote.trim().substringBefore(":")
 
 private data class TransferRoot(
     val rootPath: Path,

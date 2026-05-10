@@ -12,26 +12,26 @@
     <extensions defaultExtensionNs="com.intellij">
         <applicationConfigurable
             parentId="tools"
-            instance="com.pushpull.PushPullConfigurable"
+            instance="com.pushpull.SettingsConfigurable"
             id="com.pushpull.settings"
             displayName="Push &amp; Pull"/>
     </extensions>
 
     <actions>
         <group
-            id="PushPull.ToolsMenu"
+            id="Deploy.ToolsMenu"
             text="Push &amp; Pull"
             popup="true"
             icon="/icons/up.svg">
             <add-to-group group-id="ToolsMenu" anchor="last"/>
-            <reference ref="PushPull.PushFile"/>
-            <reference ref="PushPull.PullFile"/>
-            <reference ref="PushPull.PushFolder"/>
-            <reference ref="PushPull.PullFolder"/>
+            <reference ref="Deploy.PushFile"/>
+            <reference ref="Deploy.PullFile"/>
+            <reference ref="Deploy.PushFolder"/>
+            <reference ref="Deploy.PullFolder"/>
         </group>
 
         <action
-            id="PushPull.PushFile"
+            id="Deploy.PushFile"
             class="com.pushpull.PushFileAction"
             text="Push (Upload)"
             description="Upload the selected file with Push &amp; Pull"
@@ -43,7 +43,7 @@
         </action>
 
         <action
-            id="PushPull.PullFile"
+            id="Deploy.PullFile"
             class="com.pushpull.PullFileAction"
             text="Pull (Download)"
             description="Download the selected file with Push &amp; Pull"
@@ -55,7 +55,7 @@
         </action>
 
         <action
-            id="PushPull.PushFolder"
+            id="Deploy.PushFolder"
             class="com.pushpull.PushFolderAction"
             text="Push Folder (Upload)"
             description="Upload the selected folder with Push &amp; Pull"
@@ -64,7 +64,7 @@
         </action>
 
         <action
-            id="PushPull.PullFolder"
+            id="Deploy.PullFolder"
             class="com.pushpull.PullFolderAction"
             text="Pull Folder (Download)"
             description="Download the selected folder with Push &amp; Pull"
