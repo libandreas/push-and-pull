@@ -2,10 +2,42 @@
 	"name": "push-and-pull",
 	"displayName": "Push & Pull",
 	"description": "A deploy interface for uploading and downloading files with FTP, SFTP, FTPS, WebDAV, S3, S3-compatible storage, SMB, Swift, Azure Blob, Google Cloud Storage, Backblaze B2 and others inside your favorite IDE",
-	"version": "26.5.17",
+	"keywords": [
+		"deploy",
+		"deployment",
+		"push",
+		"pull",
+		"upload",
+		"download",
+		"sync",
+		"file-transfer",
+		"rclone",
+		"ftp",
+		"sftp",
+		"ftps",
+		"webdav",
+		"s3",
+		"s3-compatible",
+		"smb",
+		"swift",
+		"azure-blob",
+		"google-cloud-storage",
+		"backblaze-b2",
+		"cloud-storage",
+		"remote-server",
+		"website-deploy",
+		"devops",
+		"terminal",
+		"ssh",
+		"hosting",
+		"static-site",
+		"production",
+		"remote-files"
+	],
+	"version": "26.5.29",
 	"publisher": "pa-andreas",
 	"license": "GPL-3.0-or-later",
-	"icon": "favicon-4.png",
+	"icon": "favicon-2.png",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/libandreas/push-and-pull.git"
@@ -18,6 +50,9 @@
 		"vscode": "^1.85.0"
 	},
 	"categories": [
+		"Azure",
+		"SCM Providers",
+		"Programming Languages",
 		"Other"
 	],
 	"activationEvents": [
@@ -26,7 +61,7 @@
 		"onCommand:pushR.uploadFolder",
 		"onCommand:pushR.downloadFolder"
 	],
-	"main": "./extension-4.js",
+	"main": "./extension-2.js",
 	"contributes": {
 		"configuration": {
 			"title": "Push & Pull",
