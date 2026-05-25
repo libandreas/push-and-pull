@@ -4,19 +4,15 @@ import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.application.ApplicationManager
-import com.intellij.codeInsight.daemon.impl.DaemonCodeAnalyzerImpl
-import com.intellij.lang.annotation.HighlightSeverity
 import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.State
 import com.intellij.openapi.components.Storage
-import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.options.Configurable
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.ui.dsl.builder.bindIntText
-import com.intellij.ui.dsl.builder.bindSelected
 import com.intellij.ui.dsl.builder.panel
 import org.jetbrains.plugins.terminal.TerminalToolWindowManager
 import java.nio.file.Files
@@ -31,7 +27,6 @@ class Settings : PersistentStateComponent<Settings.State> {
     data class State(
         var transfers: Int = 4,
         var checkers: Int = 8,
-        var pushErrors: Boolean = false,
     )
 
     private var currentState = State()
@@ -52,7 +47,6 @@ class SettingsConfigurable : Configurable {
     private val settings = Settings.getInstance()
     private var transfers = settings.state.transfers
     private var checkers = settings.state.checkers
-    private var pushErrors = settings.state.pushErrors
 
     override fun getDisplayName(): String = pluginTitle
 
@@ -69,30 +63,20 @@ class SettingsConfigurable : Configurable {
                     .comment("How many files rclone checks while scanning and comparing. Default: 8.")
             }
         }
-        group("Upload Rules") {
-            row {
-                checkBox("Push Errors")
-                    .bindSelected(::pushErrors)
-                    .comment("Upload files even when IDE Problems contains errors for the selected file or folder.")
-            }
-        }
     }
 
     override fun isModified(): Boolean =
         transfers != settings.state.transfers ||
-            checkers != settings.state.checkers ||
-            pushErrors != settings.state.pushErrors
+            checkers != settings.state.checkers
 
     override fun apply() {
         settings.state.transfers = transfers.coerceAtLeast(1)
         settings.state.checkers = checkers.coerceAtLeast(1)
-        settings.state.pushErrors = pushErrors
     }
 
     override fun reset() {
         transfers = settings.state.transfers
         checkers = settings.state.checkers
-        pushErrors = settings.state.pushErrors
     }
 }
 
@@ -138,20 +122,6 @@ abstract class TransferAction(
                     pluginTitle,
                 )
                 return
-            }
-
-            if (direction == Direction.Push && !settings.pushErrors) {
-                val blockingFile = findFirstFileWithFatalProblemsOrContinue(project, file)
-
-                if (blockingFile != null) {
-                    Messages.showErrorDialog(
-                        project,
-                        "Errors found in IDE Problems. Upload skipped: ${blockingFile.path}\n\n" +
-                            "You can allow this in Settings by enabling $pluginTitle: Push Errors.",
-                        pluginTitle,
-                    )
-                    return
-                }
             }
 
             makeRclonePasswd(transferRoot.rootPath, transferRoot.configPath)
@@ -328,38 +298,6 @@ private data class TransferRoot(
     val configPath: Path,
     val relativePath: String,
 )
-
-private fun findFirstFileWithFatalProblemsOrContinue(project: Project, file: VirtualFile): VirtualFile? =
-    try {
-        findFirstFileWithFatalProblems(project, file)
-    } catch (_: Exception) {
-        null
-    }
-
-private fun findFirstFileWithFatalProblems(project: Project, file: VirtualFile): VirtualFile? {
-    if (!file.isDirectory) {
-        return if (hasFatalProblems(project, file)) file else null
-    }
-
-    for (child in file.children) {
-        val blockingFile = findFirstFileWithFatalProblems(project, child)
-
-        if (blockingFile != null) {
-            return blockingFile
-        }
-    }
-
-    return null
-}
-
-private fun hasFatalProblems(project: Project, file: VirtualFile): Boolean =
-    ApplicationManager.getApplication().runReadAction<Boolean> {
-        val document = FileDocumentManager.getInstance().getDocument(file) ?: return@runReadAction false
-
-        DaemonCodeAnalyzerImpl
-            .getHighlights(document, HighlightSeverity.ERROR, project)
-            .any { it.severity == HighlightSeverity.ERROR }
-    }
 
 private fun makeRclonePasswd(projectRoot: Path, configPath: Path) {
     if (!Files.exists(configPath)) {

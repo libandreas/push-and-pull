@@ -1,7 +1,7 @@
 {
 	"name": "push-and-pull",
-	"displayName": "Push & Pull",
-	"description": "A deploy interface for uploading and downloading files with FTP, SFTP, FTPS, WebDAV, S3, S3-compatible storage, SMB, Swift, Azure Blob, Google Cloud Storage, Backblaze B2 and others inside your favorite IDE",
+	"displayName": "Ftp, WebDav, S3, B2, HDFS, Storj deployment - Push & Pull",
+	"description": "A deploy interface for sending and pulling files with download and upload buttons in the editor title and context menus. Support for various cloud storage providers via Rclone.",
 	"keywords": [
 		"deploy",
 		"deployment",
@@ -22,19 +22,14 @@
 		"swift",
 		"azure-blob",
 		"google-cloud-storage",
+		"google-drive",
+		"one-drive",
 		"backblaze-b2",
-		"cloud-storage",
 		"remote-server",
-		"website-deploy",
 		"devops",
-		"terminal",
-		"ssh",
-		"hosting",
-		"static-site",
-		"production",
-		"remote-files"
+		"ssh"
 	],
-	"version": "26.5.29",
+	"version": "26.5.33",
 	"publisher": "pa-andreas",
 	"license": "GPL-3.0-or-later",
 	"icon": "favicon-2.png",
@@ -77,11 +72,6 @@
 					"default": 8,
 					"minimum": 1,
 					"description": "Push & Pull rclone arg: --checkers. Number of checkers to run in parallel while scanning and comparing files."
-				},
-				"pushPull.pushErrors": {
-					"type": "boolean",
-					"default": false,
-					"description": "Push files even when VS Code Problems contains errors for the selected file or folder."
 				}
 			}
 		},

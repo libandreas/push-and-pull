@@ -70,15 +70,6 @@ async function runRcloneMany(action, uri, selectedUris, expectedType = vscode.Fi
 		});
 	}
 
-	if (action === "upload" && !getPushErrorsEnabled()) {
-		const blockingDiagnostics = getUploadBlockingDiagnosticsOrContinue(items, expectedType);
-
-		if (blockingDiagnostics.length) {
-			vscode.window.showErrorMessage(formatUploadBlockedMessage(blockingDiagnostics, expectedType));
-			return;
-		}
-	}
-
 	const transferRoots = [...new Map(items.map((item) => [item.configFile, item])).values()];
 
 	try {
@@ -175,87 +166,6 @@ async function findRcloneRoot(itemPath, resourceType) {
 
 		currentPath = parentPath;
 	}
-}
-
-function getUploadBlockingDiagnosticsOrContinue(items, resourceType) {
-	try {
-		return getUploadBlockingDiagnostics(items, resourceType);
-	} catch {
-		return [];
-	}
-}
-
-function getUploadBlockingDiagnostics(items, resourceType) {
-	if (resourceType === vscode.FileType.File) {
-		return items.flatMap((item) => vscode.languages
-			.getDiagnostics(item.uri)
-			.filter(isErrorDiagnostic)
-			.map((diagnostic) => ({
-				uri: item.uri,
-				relativePath: item.relativePath,
-				diagnostic
-			})));
-	}
-
-	const selectedFolders = items.map((item) => ({
-		uri: item.uri,
-		rootPath: item.rootPath,
-		relativePath: item.relativePath
-	}));
-	const blockingDiagnostics = [];
-
-	for (const [resourceUri, diagnostics] of vscode.languages.getDiagnostics()) {
-		if (resourceUri.scheme !== "file" || !diagnostics.some(isErrorDiagnostic)) {
-			continue;
-		}
-
-		const selectedFolder = selectedFolders.find((item) => isSameOrChildPath(resourceUri.fsPath, item.uri.fsPath));
-
-		if (!selectedFolder) {
-			continue;
-		}
-
-		const relativePath = path.relative(selectedFolder.rootPath, resourceUri.fsPath) || selectedFolder.relativePath;
-
-		for (const diagnostic of diagnostics.filter(isErrorDiagnostic)) {
-			blockingDiagnostics.push({
-				uri: resourceUri,
-				relativePath,
-				diagnostic
-			});
-		}
-	}
-
-	return blockingDiagnostics;
-}
-
-function isErrorDiagnostic(diagnostic) {
-	return diagnostic.severity === vscode.DiagnosticSeverity.Error;
-}
-
-function isSameOrChildPath(candidatePath, parentPath) {
-	const relativePath = path.relative(normalizeFsPath(parentPath), normalizeFsPath(candidatePath));
-
-	return relativePath === "" || (!!relativePath && !relativePath.startsWith("..") && !path.isAbsolute(relativePath));
-}
-
-function normalizeFsPath(value) {
-	const normalizedPath = path.normalize(value);
-
-	return process.platform === "win32" ? normalizedPath.toLowerCase() : normalizedPath;
-}
-
-function formatUploadBlockedMessage(blockingDiagnostics, resourceType) {
-	const errorCount = blockingDiagnostics.length;
-	const firstDiagnostic = blockingDiagnostics[0];
-	const scope = resourceType === vscode.FileType.Directory ? "selected folder" : "selected file";
-	const plural = errorCount === 1 ? "" : "s";
-
-	return `Errors found in VS Code Problems. Upload skipped. ${errorCount} error${plural} in the ${scope}: ${firstDiagnostic.relativePath}. You can allow this in Settings by enabling Push & Pull: Push Errors.`;
-}
-
-function getPushErrorsEnabled() {
-	return Boolean(vscode.workspace.getConfiguration("pushPull").get("pushErrors", false));
 }
 
 async function makeRclonePasswd(rootPath, configFile) {
