@@ -6,7 +6,7 @@ It keeps the workflow simple: push files up, pull files down, and deploy without
 
 It is meant to feel quick and practical inside VS Code, like a tiny deploy cockpit for the files you are already editing.
 
-![Push & Pull screenshot](https://ceres-assistant.com/screenshots-raw/40.webp)
+![Push & Pull screenshot](https://ceres-assistant.com/screenshots-new/2026-05-26_17-47-39.webp)
 
 ## Supported Protocols
 
@@ -223,10 +223,12 @@ Everything after that should be handled by `rclone`.
 
 The VS Code extension is the active implementation. The JetBrains plugin files are currently in construction and have not been tested yet with `runIde` or a packaged plugin build.
 
-## More
-
-See more smart solutions and practical tools at [ceres-assistant.com](https://ceres-assistant.com).
-
 ## License
 
 Push & Pull is licensed under the GNU General Public License v3.0 or later.
+
+## Bug Reports and Feedback
+https://ceres-assistant.com/web/contact.php
+
+## Privacy Policy Page
+https://ceres-assistant.com/web/privacy-policy.php

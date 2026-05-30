@@ -2,20 +2,13 @@
     <id>com.pushpull.deploy</id>
     <name>Push &amp; Pull</name>
     <vendor email="support@example.com" url="https://example.com">Push &amp; Pull</vendor>
+
     <description><![CDATA[
-        A deploy interface for pushing and pulling files with FTP, SFTP, FTPS, WebDAV, S3, S3-compatible storage, SMB, Swift, Azure Blob, Google Cloud Storage, Backblaze B2 and others inside your favorite IDE.
+        A deployment interface for JetBrains IDEs with upload and download actions in editor, toolbar, and project context menus. Push and pull files or folders through Rclone with support for FTP, SFTP, FTPS, WebDAV, S3, S3-compatible storage, SMB, Swift, Azure Blob, Google Cloud Storage, Google Drive, OneDrive, Backblaze B2, remote servers, and SSH workflows.
     ]]></description>
 
     <depends>com.intellij.modules.platform</depends>
     <depends>org.jetbrains.plugins.terminal</depends>
-
-    <extensions defaultExtensionNs="com.intellij">
-        <applicationConfigurable
-            parentId="tools"
-            instance="com.pushpull.SettingsConfigurable"
-            id="com.pushpull.settings"
-            displayName="Push &amp; Pull"/>
-    </extensions>
 
     <actions>
         <group
@@ -24,18 +17,15 @@
             popup="true"
             icon="/icons/up.svg">
             <add-to-group group-id="ToolsMenu" anchor="last"/>
-            <reference ref="Deploy.PushFile"/>
-            <reference ref="Deploy.PullFile"/>
-            <reference ref="Deploy.PushFolder"/>
-            <reference ref="Deploy.PullFolder"/>
         </group>
 
         <action
             id="Deploy.PushFile"
-            class="com.pushpull.PushFileAction"
+            class="com.deploymenthost.jetbrains.UploadFileAction"
             text="Push (Upload)"
-            description="Upload the selected file with Push &amp; Pull"
+            description="Upload the selected file"
             icon="/icons/up.svg">
+            <add-to-group group-id="Deploy.ToolsMenu" anchor="last"/>
             <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
             <add-to-group group-id="EditorPopupMenu" anchor="last"/>
             <add-to-group group-id="MainToolBar" anchor="last"/>
@@ -44,10 +34,11 @@
 
         <action
             id="Deploy.PullFile"
-            class="com.pushpull.PullFileAction"
+            class="com.deploymenthost.jetbrains.DownloadFileAction"
             text="Pull (Download)"
-            description="Download the selected file with Push &amp; Pull"
+            description="Download the selected file"
             icon="/icons/down.svg">
+            <add-to-group group-id="Deploy.ToolsMenu" anchor="last"/>
             <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
             <add-to-group group-id="EditorPopupMenu" anchor="last"/>
             <add-to-group group-id="MainToolBar" anchor="last"/>
@@ -56,19 +47,21 @@
 
         <action
             id="Deploy.PushFolder"
-            class="com.pushpull.PushFolderAction"
+            class="com.deploymenthost.jetbrains.UploadFolderAction"
             text="Push Folder (Upload)"
-            description="Upload the selected folder with Push &amp; Pull"
+            description="Upload the selected folder"
             icon="/icons/up.svg">
+            <add-to-group group-id="Deploy.ToolsMenu" anchor="last"/>
             <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
         </action>
 
         <action
             id="Deploy.PullFolder"
-            class="com.pushpull.PullFolderAction"
+            class="com.deploymenthost.jetbrains.DownloadFolderAction"
             text="Pull Folder (Download)"
-            description="Download the selected folder with Push &amp; Pull"
+            description="Download the selected folder"
             icon="/icons/down.svg">
+            <add-to-group group-id="Deploy.ToolsMenu" anchor="last"/>
             <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
         </action>
     </actions>
