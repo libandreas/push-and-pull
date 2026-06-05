@@ -146,63 +146,29 @@ pass = generated-by-rclone
 
 Upload a file:
 
-```powershell
-rclone --config .\rclone.conf copy .\test-1.html my-project: --progress
-```
-
-Download a file:
-
-```powershell
-rclone --config .\rclone.conf copy my-project:/test-1.html . --progress
-```
-
-Upload a folder:
-
-```powershell
-rclone --config .\rclone.conf copy .\test my-project:/test --progress
-```
-
-Download a folder:
-
-```powershell
-rclone --config .\rclone.conf copy my-project:/test .\test --progress
-```
-
 ## Requirement
 
 As you can see, Push & Pull runs `rclone` as a backend for uploading and downloading files. You must install `rclone` on your computer and make sure it is available in your terminal PATH.
 
 Windows:
 
-```powershell
 winget install Rclone.Rclone
-```
 
 macOS with Homebrew:
 
-```bash
 brew install rclone
-```
 
 Linux, macOS, or BSD with the official install script:
 
-```bash
 sudo -v ; curl https://rclone.org/install.sh | sudo bash
-```
 
 Manual download:
 
-```text
 https://rclone.org/downloads/
-```
 
 After installing, restart VS Code or open a new terminal and check:
 
-```bash
 rclone version
-```
-
-Push it when it feels right. Pull it before things get messy. 😂
 
 ## Contributing
 

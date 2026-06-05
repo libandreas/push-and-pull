@@ -1,7 +1,7 @@
 {
 	"name": "push-and-pull",
-	"displayName": "Ftp & WebDav Deployment - Push & Pull",
-	"description": "Rclone deploy interface for sending and pulling files with download and upload buttons in the editor and context menus. Support for various protocols and cloud storages.",
+	"displayName": "Push & Pull / File Transfer",
+	"description": "FTP & WebDAV deploy interface for sending, uploading, and downloading files with buttons in the editor and context menus. Support for various protocols and cloud storages via rclone.",
 	"keywords": [
 		"deploy",
 		"deployment",
@@ -29,7 +29,7 @@
 		"devops",
 		"ssh"
 	],
-	"version": "26.5.36",
+	"version": "26.6.5",
 	"publisher": "pa-andreas",
 	"license": "GPL-3.0-or-later",
 	"icon": "favicon-2.png",

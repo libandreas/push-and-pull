@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "com.deploymenthost"
-version = "26.5.36"
+version = "26.6.5"
 
 java {
     toolchain {
