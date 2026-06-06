@@ -29,13 +29,16 @@
 		"devops",
 		"ssh"
 	],
-	"version": "26.6.5",
+	"version": "26.6.12",
 	"publisher": "pa-andreas",
 	"license": "GPL-3.0-or-later",
 	"icon": "favicon-2.png",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/libandreas/push-and-pull.git"
+	},
+	"dependencies": {
+		"adm-zip": "^0.5.16"
 	},
 	"scripts": {
 		"build:vscode": "node build-vscode.mjs",

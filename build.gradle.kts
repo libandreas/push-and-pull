@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "com.deploymenthost"
-version = "26.6.5"
+version = "26.6.9"
 
 java {
     toolchain {
@@ -22,7 +22,6 @@ repositories {
 dependencies {
     intellijPlatform {
         intellijIdeaCommunity("2024.3")
-        bundledPlugin("org.jetbrains.plugins.terminal")
     }
 }
 

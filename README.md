@@ -57,7 +57,7 @@ Editor shortcuts:
 - `Ctrl+Down`: pull/download the current file
 - macOS uses `Cmd+Up` and `Cmd+Down`
 
-The extension sends deploy commands into an IDE terminal named `Push & Pull`.
+In VS Code, the extension runs transfers internally. It does not need to open the integrated terminal for upload or download.
 
 ## Settings
 
@@ -74,7 +74,7 @@ These control how many transfers and checks rclone runs in parallel. They work a
 
 Put `rclone.conf` in the project root.
 
-If you run Push & Pull on a file that is outside the currently opened IDE project or workspace, the extension walks upward from that file until it finds the nearest `rclone.conf`. That folder is treated as the project root for the transfer, and the terminal command uses full local paths so it can run correctly from any terminal location.
+If you run Push & Pull on a file that is outside the currently opened IDE project or workspace, the extension walks upward from that file until it finds the nearest `rclone.conf`. That folder is treated as the project root for the transfer, and the internal `rclone` process uses full local paths so it can run correctly from any location.
 
 Do not forget to add `rclone.conf` to your `.gitignore`, especially if it contains passwords, tokens, or `pass-visible`.
 
@@ -148,27 +148,16 @@ Upload a file:
 
 ## Requirement
 
-As you can see, Push & Pull runs `rclone` as a backend for uploading and downloading files. You must install `rclone` on your computer and make sure it is available in your terminal PATH.
+In VS Code, Push & Pull downloads the latest `rclone` build automatically on first use and stores it inside the extension's internal storage.
 
-Windows:
+The extension detects the current OS and CPU architecture, maps that to the matching official `rclone` build name, and downloads that version internally.
 
-winget install Rclone.Rclone
+When you click upload or download, the extension:
 
-macOS with Homebrew:
-
-brew install rclone
-
-Linux, macOS, or BSD with the official install script:
-
-sudo -v ; curl https://rclone.org/install.sh | sudo bash
-
-Manual download:
-
-https://rclone.org/downloads/
-
-After installing, restart VS Code or open a new terminal and check:
-
-rclone version
+- checks the latest `rclone` version
+- downloads the correct build if needed
+- shows status while downloading, uploading, or downloading files
+- shows a finish or fail message at the bottom of VS Code
 
 ## Contributing
 
@@ -182,8 +171,9 @@ The extension backend should stay small:
 
 - handle `pass-visible` by generating the correct `pass` value with `rclone obscure`
 - build the correct `rclone copy` command for the selected file or folder
-- open the IDE terminal
-- send the command to the terminal so the user can see and control what runs
+- download the latest compatible `rclone` build for VS Code when needed
+- run `rclone` internally for upload and download
+- show transfer status and finish or fail notifications
 
 Everything after that should be handled by `rclone`.
 

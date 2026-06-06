@@ -8,7 +8,10 @@
     ]]></description>
 
     <depends>com.intellij.modules.platform</depends>
-    <depends>org.jetbrains.plugins.terminal</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <notificationGroup id="Push &amp; Pull" displayType="BALLOON" isLogByDefault="true"/>
+    </extensions>
 
     <actions>
         <group
