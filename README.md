@@ -1,84 +1,52 @@
 # Push & Pull ⬆⬇
 
-Push & Pull is a deploy interface for VS Code and JetBrains IDEs (under development).
+Push & Pull lets you upload and download project files without leaving your editor.
 
-It keeps the workflow simple: push files up, pull files down, and deploy without leaving the editor. Push & Pull adds upload/download context menus, editor toolbar icons, and shortcuts for fast file transfers. Use `Ctrl+Up` to push/upload the current file and `Ctrl+Down` to pull/download it. On macOS, use `Cmd+Up` and `Cmd+Down`.
-
-It is meant to feel quick and practical inside VS Code, like a tiny deploy cockpit for the files you are already editing.
+It adds upload and download actions to the editor, file explorer, project menus, and toolbar. You can transfer a single file, a folder, or multiple selected items directly between your project and a remote server.
 
 ![Push & Pull screenshot](https://ceres-assistant.com/screenshots-new/2026-05-26_17-47-39.webp)
 
-## Supported Protocols
+## What You Can Do
 
-Push & Pull can work with many production-friendly storage and deploy targets, including:
+- Upload files to your server.
+- Download files from your server.
+- Upload or download complete folders.
+- Transfer multiple selected files or folders.
+- Use toolbar buttons, context menus, or keyboard shortcuts.
+- See live transfer progress inside the editor.
+- Connect to FTP, SFTP, WebDAV, S3, and many other services supported by rclone.
 
-- FTP
-- SFTP
-- FTPS
-- SSH
-- WebDAV
-- S3
-- S3-compatible storage
-- SMB
-- Swift
-- Azure Blob Storage
-- Google Cloud Storage
-- Backblaze B2
-- Many others
+Push & Pull uses rclone for the actual file transfers. You only need to describe your server once in an `rclone.conf` file inside your project.
 
-## IDE Actions
+## Keyboard Shortcuts
 
-Push & Pull adds visible IDE actions, not just command palette commands.
+- `Ctrl+Up`: upload the current file.
+- `Ctrl+Down`: download the current file.
+- On macOS, use `Cmd+Up` and `Cmd+Down`.
 
-For files, you can use:
+Folder transfers and multiple selections are available from the file or project context menu.
 
-- Explorer file context menu
-- editor right-click context menu
-- editor title toolbar up/down icons
-- keyboard shortcuts
+## Project Setup
 
-File actions:
+Create an `rclone.conf` file in the root folder of your project.
 
-- `Push (Upload)`
-- `Pull (Download)`
+Push & Pull uses this file to understand:
 
-For folders, right-click a folder in the Explorer:
+- where your server is,
+- which connection type to use,
+- which username and port to use,
+- where the project should be uploaded,
+- and how the connection should be authenticated.
 
-- `Push Folder (Upload)`
-- `Pull Folder (Download)`
+Add `rclone.conf` to your `.gitignore` so passwords, access tokens, and server details are not committed to your repository:
 
-In VS Code, the editor title toolbar shows the up/down arrow icons for the current file when there is enough room in the editor header. If VS Code hides one of them, it is usually available in the editor title `...` menu.
+```gitignore
+rclone.conf
+```
 
-In JetBrains IDEs, the plugin is still under development. The planned actions are Project View context menu, editor context menu, Tools menu, and main toolbar actions.
+## Basic `rclone.conf` Example
 
-Editor shortcuts:
-
-- `Ctrl+Up`: push/upload the current file
-- `Ctrl+Down`: pull/download the current file
-- macOS uses `Cmd+Up` and `Cmd+Down`
-
-In VS Code, the extension runs transfers internally. It does not need to open the integrated terminal for upload or download.
-
-## Settings
-
-Open IDE Settings and search for `Push & Pull`.
-
-Available settings:
-
-- `Push Pull: Transfers`: rclone `--transfers`, default `4`
-- `Push Pull: Checkers`: rclone `--checkers`, default `8`
-
-These control how many transfers and checks rclone runs in parallel. They work across deploy protocols such as FTP, SFTP, SSH, WebDAV, S3, and others, but the best value depends on the server. The defaults are conservative for shared hosting. If your backend is fast and stable, you can raise the numbers.
-
-## Config and Setup
-
-Put `rclone.conf` in the project root.
-
-If you run Push & Pull on a file that is outside the currently opened IDE project or workspace, the extension walks upward from that file until it finds the nearest `rclone.conf`. That folder is treated as the project root for the transfer, and the internal `rclone` process uses full local paths so it can run correctly from any location.
-
-Do not forget to add `rclone.conf` to your `.gitignore`, especially if it contains passwords, tokens, or `pass-visible`.
-
-Create a config file for your server in `rclone.conf`. The name inside brackets is your remote name. Users should choose their own names. In this example, the server remote is called `[my-server]`:
+The following example creates an FTP connection named `my-server`:
 
 ```ini
 [my-server]
@@ -90,18 +58,15 @@ explicit_tls = true
 passive = true
 no_check_certificate = true
 pass-visible = my-password
-pass = generated-by-rclone
 ```
 
-If your website files live inside a deploy folder, you can also create an alias that points directly there. Use your own project name here too:
+Replace the example host, username, password, and connection options with the details of your server.
 
-```ini
-[my-project]
-type = alias
-remote = your-real-remote:/httpdocs
-```
+## The `my-project` Destination
 
-For example:
+Push & Pull sends project files to a destination named `my-project:`.
+
+Create a `my-project` alias in the same `rclone.conf` and point it to the folder where your project should be deployed:
 
 ```ini
 [my-project]
@@ -109,82 +74,133 @@ type = alias
 remote = my-server:/httpdocs
 ```
 
-`[my-project]` is only an example. You can call it `[deploy]`, `[website]`, `[client-site]`, or any name that makes sense for your project.
+In this example:
 
-Push & Pull always uses `my-project:` as the project deploy remote, so create a `[my-project]` alias in `rclone.conf`.
+- `my-server` is the FTP connection.
+- `/httpdocs` is the website folder on the server.
+- `my-project:` represents that folder inside Push & Pull.
 
-Then the extension can use clean paths like:
-
-```text
-my-project:/test/1.html
-```
-
-instead of requiring the deploy folder in every command.
-
-## Password Handling
-
-If `rclone.conf` contains:
-
-```ini
-pass-visible = your-password
-```
-
-Push & Pull silently runs:
+If you upload this local file:
 
 ```text
-rclone obscure
+images/logo.png
 ```
 
-through an internal process before every push or pull action. It then writes the generated rclone password under `pass-visible`:
+Push & Pull uploads it to:
+
+```text
+my-project:/images/logo.png
+```
+
+This keeps the local project structure and the remote project structure in sync.
+
+You can choose any name for the real server connection, but the deploy alias must be named `my-project`.
+
+## How `pass-visible` Works
+
+The `pass-visible` option lets you enter the real password in a readable form:
 
 ```ini
-pass-visible = your-password
-pass = generated-by-rclone
+pass-visible = my-password
 ```
 
-## Command Examples
+Before every upload or download, Push & Pull finds `pass-visible` and asks rclone to obscure that password. It then adds or updates the `pass` option directly below it:
 
-Upload a file:
+```ini
+pass-visible = my-password
+pass = obscured-password-created-by-rclone
+```
 
-## Requirement
+The generated `pass` value is the format rclone expects for the connection. You do not need to run `rclone obscure` yourself or manually copy the generated value.
 
-In VS Code, Push & Pull downloads the latest `rclone` build automatically on first use and stores it inside the extension's internal storage.
+If the visible password changes, Push & Pull generates a new `pass` value on the next upload or download.
 
-The extension detects the current OS and CPU architecture, maps that to the matching official `rclone` build name, and downloads that version internally.
+`pass-visible` still contains the real password as plain text. Always keep `rclone.conf` private and exclude it from Git.
 
-When you click upload or download, the extension:
+## Other Connection Types
 
-- checks the latest `rclone` version
-- downloads the correct build if needed
-- shows status while downloading, uploading, or downloading files
-- shows a finish or fail message at the bottom of VS Code
+Push & Pull can use the connection types supported by rclone, including:
 
-## Contributing
+- FTP and FTPS
+- SFTP and SSH
+- WebDAV
+- S3 and S3-compatible storage
+- SMB
+- Azure Blob Storage
+- Google Cloud Storage
+- Google Drive
+- OneDrive
+- Backblaze B2
+- Swift
 
-This section is for people who want to help with the programming of Push & Pull.
+The server section changes depending on the connection type, but the `my-project` alias works in the same way.
 
-The main idea is intentionally simple: Push & Pull does not implement its own deploy logic. We do not crawl directories, compare files, upload chunks, or re-create sync behavior ourselves. That work belongs to `rclone`.
+For example, a WebDAV connection can be used as the real remote while `my-project` continues to point to the correct website folder.
 
-Push & Pull is the IDE layer around that workflow. It adds icons, context menu actions, shortcuts, and settings inside the editor, then runs `rclone` with the project's `rclone.conf` so files and folders can be pushed and pulled from the IDE.
+## Uploading and Downloading
 
-The extension backend should stay small:
+To upload a file or folder:
 
-- handle `pass-visible` by generating the correct `pass` value with `rclone obscure`
-- build the correct `rclone copy` command for the selected file or folder
-- download the latest compatible `rclone` build for VS Code when needed
-- run `rclone` internally for upload and download
-- show transfer status and finish or fail notifications
+1. Select it in the editor or project explorer.
+2. Choose `Push (Upload)` or `Push Folder (Upload)`.
+3. Follow the live progress notification.
 
-Everything after that should be handled by `rclone`.
+To download a file or folder:
 
-The VS Code extension is the active implementation. The JetBrains plugin files are currently in construction and have not been tested yet with `runIde` or a packaged plugin build.
+1. Select its local location in the project.
+2. Choose `Pull (Download)` or `Pull Folder (Download)`.
+3. Push & Pull downloads the matching path from `my-project:`.
 
-## License
+For example, downloading:
 
-Push & Pull is licensed under the GNU General Public License v3.0 or later.
+```text
+css/style.css
+```
+
+reads the remote file from:
+
+```text
+my-project:/css/style.css
+```
+
+and writes it back to the same location in the local project.
+
+## Finding the Project Configuration
+
+Push & Pull normally uses the `rclone.conf` in the project root.
+
+If the selected file belongs to a nested project, Push & Pull searches its parent folders for the nearest `rclone.conf`. This allows different projects to use different servers and deployment folders.
+
+## Transfer Settings
+
+Open your editor settings and search for `Push & Pull`.
+
+Available settings:
+
+- `Transfers`: how many files rclone can transfer at the same time. The default is `4`.
+- `Checkers`: how many checks rclone can run at the same time. The default is `8`.
+
+The default values are suitable for most servers. Higher values may make transfers faster on powerful servers, while lower values may work better on limited shared hosting.
+
+## rclone Installation
+
+You do not need to install rclone manually.
+
+On first use, Push & Pull downloads a compatible rclone version for your operating system. It keeps that version inside the editor's private storage and checks periodically for updates.
+
+If an update check cannot connect to the internet, Push & Pull continues using the previously downloaded version when available.
+
+## Transfer Progress and Errors
+
+During an upload or download, Push & Pull shows the latest transfer information, including transferred size, percentage, speed, and estimated time when rclone provides them.
+
+When the transfer finishes, you receive a completion notification. If it fails, the notification shows the latest useful error returned by rclone.
 
 ## Bug Reports and Feedback
+
 https://ceres-assistant.com/web/contact.php
 
-## Privacy Policy Page
+## Privacy Policy
+
 https://ceres-assistant.com/web/privacy-policy.php
+

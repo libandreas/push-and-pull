@@ -524,11 +524,32 @@ async function runRcloneCommand({ rclonePath, args, cwd, progress, action, itemL
 		let stdoutText = "";
 		let stderrText = "";
 		let lastProgressAt = 0;
-		let stdoutPending = "";
-		let stderrPending = "";
+		const outputState = {
+			stdout: { line: "", skipNextLf: false },
+			stderr: { line: "", skipNextLf: false }
+		};
+
+		const reportProgressText = (value) => {
+			const cleanLine = cleanProgressText(value);
+
+			if (!cleanLine) {
+				return;
+			}
+
+			if (Date.now() - lastProgressAt < RCLONE_PROGRESS_THROTTLE_MS) {
+				return;
+			}
+
+			lastProgressAt = Date.now();
+			const compactLine = keepLatestEta(cleanLine).replace(/\s+/g, " ").slice(0, 140);
+			progress.report({ message: compactLine });
+			setStatusBar(action === "upload"
+				? `$(arrow-up) Uploading: ${itemLabel}`
+				: `$(arrow-down) Downloading: ${itemLabel}`);
+		};
 
 		const reportLine = (line, sinkName) => {
-			const cleanLine = line.trim();
+			const cleanLine = cleanProgressText(line);
 
 			if (!cleanLine) {
 				return;
@@ -540,33 +561,51 @@ async function runRcloneCommand({ rclonePath, args, cwd, progress, action, itemL
 				stderrText += `${cleanLine}\n`;
 			}
 
-			if (Date.now() - lastProgressAt < RCLONE_PROGRESS_THROTTLE_MS) {
-				return;
-			}
-
-			lastProgressAt = Date.now();
-			const compactLine = cleanLine.replace(/\s+/g, " ").slice(0, 140);
-			progress.report({ message: compactLine });
-			setStatusBar(action === "upload"
-				? `$(arrow-up) Uploading: ${itemLabel}`
-				: `$(arrow-down) Downloading: ${itemLabel}`);
+			reportProgressText(cleanLine);
 		};
 
 		const consumeChunk = (chunk, pendingKey) => {
-			let pending = pendingKey === "stdout" ? stdoutPending : stderrPending;
-			pending += String(chunk || "");
-			const parts = pending.split(/\r\n|[\r\n]/);
-			pending = parts.pop() || "";
+			const state = outputState[pendingKey];
+			const text = String(chunk || "");
 
-			for (const line of parts) {
-				reportLine(line, pendingKey);
+			if (!/[\r\n]/.test(text) && isRcloneProgressText(text)) {
+				state.line = text;
+				reportProgressText(state.line);
+				return;
 			}
 
-			if (pendingKey === "stdout") {
-				stdoutPending = pending;
-			} else {
-				stderrPending = pending;
+			const firstLine = text.split(/\r?\n/, 1)[0];
+
+			if (isRcloneProgressText(state.line) && isRcloneProgressText(firstLine)) {
+				state.line = "";
 			}
+
+			for (const char of text) {
+				if (state.skipNextLf) {
+					state.skipNextLf = false;
+
+					if (char === "\n") {
+						continue;
+					}
+				}
+
+				if (char === "\r") {
+					reportProgressText(state.line);
+					state.line = "";
+					state.skipNextLf = true;
+					continue;
+				}
+
+				if (char === "\n") {
+					reportLine(state.line, pendingKey);
+					state.line = "";
+					continue;
+				}
+
+				state.line += char;
+			}
+
+			reportProgressText(state.line);
 		};
 
 		child.stdout.on("data", (chunk) => {
@@ -577,12 +616,18 @@ async function runRcloneCommand({ rclonePath, args, cwd, progress, action, itemL
 		});
 		child.on("error", reject);
 		child.on("close", (code) => {
-			if (stdoutPending.trim()) {
-				stdoutText += `${stdoutPending.trim()}\n`;
-			}
+			for (const [sinkName, state] of Object.entries(outputState)) {
+				const cleanLine = cleanProgressText(state.line);
 
-			if (stderrPending.trim()) {
-				stderrText += `${stderrPending.trim()}\n`;
+				if (!cleanLine) {
+					continue;
+				}
+
+				if (sinkName === "stdout") {
+					stdoutText += `${cleanLine}\n`;
+				} else {
+					stderrText += `${cleanLine}\n`;
+				}
 			}
 
 			if (code === 0) {
@@ -900,6 +945,29 @@ function getLastMeaningfulLine(text) {
 		.map((line) => line.trim())
 		.filter(Boolean)
 		.pop() || "";
+}
+
+function cleanProgressText(value) {
+	return String(value || "")
+		.replace(/\u001b\[[0-9;?]*[ -/]*[@-~]/g, " ")
+		.replace(/\u001b\].*?(?:\u0007|\u001b\\)/g, " ")
+		.replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, " ")
+		.trim()
+		.replace(/\s+/g, " ");
+}
+
+function keepLatestEta(value) {
+	const etaMatches = [...value.matchAll(/\bETA\b/g)];
+
+	if (etaMatches.length < 2) {
+		return value;
+	}
+
+	return `${value.slice(0, etaMatches[0].index).trim()} ${value.slice(etaMatches[etaMatches.length - 1].index).trim()}`.trim();
+}
+
+function isRcloneProgressText(value) {
+	return /\bETA\b/.test(String(value || "")) && /\d+(?:\.\d+)?\s*(?:B|KiB|MiB|GiB|TiB)\s*\/\s*\d+(?:\.\d+)?\s*(?:B|KiB|MiB|GiB|TiB)/.test(String(value || ""));
 }
 
 function formatBytes(value) {

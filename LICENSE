@@ -1,15 +1,100 @@
-GPL-3.0-or-later
+# Ceres License
 
-Copyright (C) 2026 Andreas
+Copyright (c) 2026 Andreas Voukelatos. All rights reserved.
 
-Push & Pull is free software: you can redistribute it and/or modify it under
-the terms of the GNU General Public License as published by the Free Software
-Foundation, either version 3 of the License, or (at your option) any later
-version.
+Ceres is proprietary software. It is not open source.
 
-Push & Pull is distributed in the hope that it will be useful, but WITHOUT ANY
-WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
-PARTICULAR PURPOSE. See the GNU General Public License for more details.
+This license grants you permission to install and use Ceres, but it does not transfer ownership of the software, source code, design, name, branding, assets, documentation, or related intellectual property.
 
-You should have received a copy of the GNU General Public License along with
-this project. If not, see <https://www.gnu.org/licenses/>.
+This license covers Ceres software, related browser and IDE extensions, website code, website content, product pages, documentation, assets, branding, and other original materials included in this repository or distributed by the copyright holder.
+
+Official website: https://ceres-assistant.com
+
+## Permitted Use
+
+You may use Ceres for personal work, professional work, education, research, writing, coding, browser workflows, IDE workflows, and other normal productivity use.
+
+If you have a paid license key, you may use that key on your own devices.
+
+You may share your license key only with people in your close private or work circle, such as your family, your small office, your personal team, or people directly working with you. This permission is intended for reasonable private use, not public distribution.
+
+If the same Ceres application works in multiple environments, such as browser, IDE, or desktop workflows, one license may cover that same application unless a separate license is clearly required for a different product.
+
+## Restrictions
+
+You may not:
+
+- Publish, leak, sell, rent, or publicly share a license key.
+- Copy, redistribute, mirror, or republish Ceres as a separate repository, package, extension, application, archive, or download.
+- Modify, fork, rebrand, resell, sublicense, or create a competing product from Ceres or its source code.
+- Remove copyright notices, license notices, branding, or ownership information.
+- Claim that Ceres, its code, design, interface, assets, or product identity is your own.
+- Use Ceres source code or private implementation details to build or distribute a substantially similar product.
+- Circumvent license checks, usage limits, access controls, or payment systems.
+- Reverse engineer, decompile, or disassemble Ceres except where this restriction is not allowed by applicable law.
+
+## Public Display
+
+You may show Ceres in screenshots, videos, reviews, tutorials, presentations, demos, blog posts, and social media posts.
+
+When showing Ceres publicly, you must not present it as your own product, your own source code, or your own original software. You should make it clear that Ceres is a separate product.
+
+## Source Code Access
+
+Access to the source code, if provided, is for review, installation, debugging, contribution discussion, or private evaluation only.
+
+Source code access does not grant permission to redistribute, fork, modify, repackage, publish, or reuse the code in another product.
+
+## User Content and AI Providers
+
+Ceres may help users work with text, code, files, images, audio, browser content, IDE context, API keys, local providers, and external AI providers.
+
+Your content remains your responsibility. When you connect an external AI provider, requests may be sent to that provider according to your settings and that provider's terms and privacy policy.
+
+For more details about data handling, see the Ceres Privacy Policy.
+
+## Third-Party Components
+
+Ceres may include or depend on third-party open-source libraries, packages, tools, fonts, icons, SDKs, APIs, or platform services.
+
+Those third-party components are not relicensed under this Ceres License. They remain subject to their own licenses, notices, copyright terms, and provider terms.
+
+This license applies only to Ceres original code, product logic, interface, branding, assets, documentation, and other original materials owned by the copyright holder.
+
+## Updates and Availability
+
+Ceres may change over time. Features may be added, removed, renamed, limited, or changed.
+
+Some features may depend on browsers, IDEs, operating systems, marketplaces, AI providers, local models, APIs, or other third-party services. We do not guarantee that every feature will always remain available on every platform.
+
+## Enforcement
+
+This license is intended to be interpreted under applicable copyright, software, and contract laws.
+
+If Ceres is copied, redistributed, republished, modified, rebranded, or used outside this license, the copyright holder may enforce their rights through any available legal, platform, marketplace, hosting provider, payment provider, or takedown process.
+
+The copyright holder may choose the appropriate enforcement method and jurisdiction depending on where the violation occurs, where the infringing material is hosted, where the infringing party is located, and what remedies are practically available.
+
+Nothing in this license limits any mandatory rights that a user may have under applicable consumer protection, copyright, or software law.
+
+## Termination
+
+If you violate this license, your permission to use Ceres ends automatically.
+
+After termination, you must stop using Ceres and delete any unauthorized copies, redistributed files, modified versions, leaked license keys, or public mirrors under your control.
+
+## No Warranty
+
+Ceres is provided "as is" and "as available", without warranties of any kind.
+
+We do not guarantee that Ceres will be error-free, uninterrupted, secure, compatible with every system, or suitable for every purpose.
+
+## Limitation of Liability
+
+To the maximum extent permitted by law, the author and copyright holder will not be liable for any indirect, incidental, special, consequential, exemplary, or punitive damages, or for loss of profits, data, business, reputation, or productivity arising from the use of Ceres.
+
+## Contact
+
+For licensing questions, contact:
+
+pa.andreas@yandex.com

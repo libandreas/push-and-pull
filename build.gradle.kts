@@ -4,7 +4,11 @@ plugins {
 }
 
 group = "com.deploymenthost"
-version = "26.6.9"
+version = "26.7.8"
+
+val userProfile = System.getenv("USERPROFILE") ?: System.getProperty("user.home")
+val localProjectBuildRoot = file("$userProfile/ceres-assistant-build - Push & Pull")
+layout.buildDirectory.set(localProjectBuildRoot.resolve("jetbrains"))
 
 java {
     toolchain {
@@ -21,11 +25,14 @@ repositories {
 
 dependencies {
     intellijPlatform {
-        intellijIdeaCommunity("2024.3")
+        local(providers.environmentVariable("WEBSTORM_HOME"))
     }
 }
 
 intellijPlatform {
+    buildSearchableOptions = true
+    sandboxContainer.set(localProjectBuildRoot.resolve("sandbox"))
+
     pluginConfiguration {
         name = "Push & Pull"
         version = project.version.toString()
@@ -33,5 +40,11 @@ intellijPlatform {
         ideaVersion {
             sinceBuild = "243"
         }
+    }
+}
+
+tasks {
+    withType<JavaCompile> {
+        options.release.set(21)
     }
 }

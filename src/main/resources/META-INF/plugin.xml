@@ -11,6 +11,11 @@
 
     <extensions defaultExtensionNs="com.intellij">
         <notificationGroup id="Push &amp; Pull" displayType="BALLOON" isLogByDefault="true"/>
+        <projectConfigurable
+            id="push.pull.settings"
+            parentId="tools"
+            displayName="Push &amp; Pull"
+            instance="com.deploymenthost.jetbrains.PushPullConfigurable"/>
     </extensions>
 
     <actions>
