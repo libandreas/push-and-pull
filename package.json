@@ -27,7 +27,7 @@
 	"version": "26.7.1",
 	"publisher": "pa-andreas",
 	"license": "GPL-3.0-or-later",
-	"icon": "favicon-2.png",
+	"icon": "favicon-4.png",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/libandreas/push-and-pull.git"
@@ -54,7 +54,7 @@
 		"onCommand:pushR.uploadFolder",
 		"onCommand:pushR.downloadFolder"
 	],
-	"main": "./extension-2.js",
+	"main": "./extension-4.js",
 	"contributes": {
 		"configuration": {
 			"title": "Push & Pull",
