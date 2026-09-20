@@ -3,10 +3,6 @@
     <name>Push &amp; Pull</name>
     <vendor email="support@example.com" url="https://example.com">Push &amp; Pull</vendor>
 
-    <description><![CDATA[
-        A deployment interface for JetBrains IDEs with upload and download actions in editor, toolbar, and project context menus. Push and pull files or folders through Rclone with support for FTP, SFTP, FTPS, WebDAV, S3, S3-compatible storage, SMB, Swift, Azure Blob, Google Cloud Storage, Google Drive, OneDrive, Backblaze B2, remote servers, and SSH workflows.
-    ]]></description>
-
     <depends>com.intellij.modules.platform</depends>
 
     <extensions defaultExtensionNs="com.intellij">
@@ -28,14 +24,29 @@
         </group>
 
         <action
+            id="Deploy.CompareFile"
+            class="com.deploymenthost.jetbrains.CompareFileAction"
+            text="Compare Online with Local"
+            description="Compare Online with Local"
+            icon="/icons/compare.svg">
+            <add-to-group group-id="MainToolBar" anchor="before" relative-to-action="Deploy.PushFile"/>
+            <add-to-group group-id="MainToolbarRight" anchor="before" relative-to-action="Deploy.PushFile"/>
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="after" relative-to-action="Deploy.PullFile"/>
+            <add-to-group group-id="EditorPopupMenu" anchor="after" relative-to-action="Deploy.PullFile"/>
+            <add-to-group group-id="EditorTabPopupMenu" anchor="after" relative-to-action="Deploy.PullFile"/>
+        </action>
+
+        <action
             id="Deploy.PushFile"
             class="com.deploymenthost.jetbrains.UploadFileAction"
             text="Push (Upload)"
             description="Upload the selected file"
             icon="/icons/up.svg">
+            <keyboard-shortcut keymap="$default" first-keystroke="control UP"/>
             <add-to-group group-id="Deploy.ToolsMenu" anchor="last"/>
             <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
             <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+            <add-to-group group-id="EditorTabPopupMenu" anchor="last"/>
             <add-to-group group-id="MainToolBar" anchor="last"/>
             <add-to-group group-id="MainToolbarRight" anchor="last"/>
         </action>
@@ -46,9 +57,11 @@
             text="Pull (Download)"
             description="Download the selected file"
             icon="/icons/down.svg">
+            <keyboard-shortcut keymap="$default" first-keystroke="control DOWN"/>
             <add-to-group group-id="Deploy.ToolsMenu" anchor="last"/>
-            <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
-            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="after" relative-to-action="Deploy.PushFile"/>
+            <add-to-group group-id="EditorPopupMenu" anchor="after" relative-to-action="Deploy.PushFile"/>
+            <add-to-group group-id="EditorTabPopupMenu" anchor="after" relative-to-action="Deploy.PushFile"/>
             <add-to-group group-id="MainToolBar" anchor="last"/>
             <add-to-group group-id="MainToolbarRight" anchor="last"/>
         </action>
@@ -60,7 +73,7 @@
             description="Upload the selected folder"
             icon="/icons/up.svg">
             <add-to-group group-id="Deploy.ToolsMenu" anchor="last"/>
-            <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="after" relative-to-action="Deploy.CompareFile"/>
         </action>
 
         <action
@@ -70,7 +83,7 @@
             description="Download the selected folder"
             icon="/icons/down.svg">
             <add-to-group group-id="Deploy.ToolsMenu" anchor="last"/>
-            <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="after" relative-to-action="Deploy.PushFolder"/>
         </action>
     </actions>
 </idea-plugin>

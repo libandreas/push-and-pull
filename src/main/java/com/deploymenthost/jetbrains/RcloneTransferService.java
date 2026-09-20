@@ -1,5 +1,7 @@
 package com.deploymenthost.jetbrains;
 
+import com.intellij.openapi.vfs.VirtualFile;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -30,6 +32,62 @@ final class RcloneTransferService {
 
     void prepareConfig(Path rclonePath, TransferItem item) throws IOException, InterruptedException {
         makeRclonePassword(rclonePath, item.rootPath(), item.configPath());
+    }
+
+    TransferItem resolveTransferItem(VirtualFile file) {
+        Path itemPath = Path.of(file.getPath()).toAbsolutePath().normalize();
+        Path rootPath = file.isDirectory() ? itemPath : itemPath.getParent();
+
+        while (rootPath != null && !Files.isRegularFile(rootPath.resolve("rclone.conf"))) {
+            rootPath = rootPath.getParent();
+        }
+
+        if (rootPath == null) {
+            return null;
+        }
+
+        Path relativePath = rootPath.relativize(itemPath);
+        if (relativePath.toString().isBlank() || relativePath.startsWith("..") || relativePath.isAbsolute()) {
+            throw new IllegalStateException("Could not make a project-relative file path.");
+        }
+
+        return new TransferItem(
+            rootPath,
+            rootPath.resolve("rclone.conf"),
+            relativePath.toString(),
+            file.isDirectory()
+        );
+    }
+
+    void downloadForComparison(
+        Path rclonePath,
+        TransferItem item,
+        Path temporaryFile,
+        Consumer<String> reportProgress
+    ) throws IOException, InterruptedException {
+        Files.createDirectories(temporaryFile.getParent());
+
+        List<String> arguments = new ArrayList<>(List.of(
+            "--config",
+            item.configPath().toString(),
+            "copyto",
+            joinRemotePath(REMOTE_ROOT, item.relativePath()),
+            temporaryFile.toString(),
+            "--local-no-preallocate",
+            "--ignore-times",
+            "--progress",
+            "--stats",
+            "1s",
+            "--stats-one-line"
+        ));
+
+        runRcloneCommand(
+            rclonePath,
+            item.rootPath(),
+            arguments,
+            TransferAction.Direction.DOWNLOAD,
+            reportProgress
+        );
     }
 
     void runTransfer(

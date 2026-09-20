@@ -3,6 +3,7 @@ package com.deploymenthost.jetbrains;
 import com.intellij.notification.Notification;
 import com.intellij.notification.NotificationGroupManager;
 import com.intellij.notification.NotificationType;
+import com.intellij.openapi.actionSystem.ActionUpdateThread;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
@@ -31,6 +32,7 @@ abstract class TransferAction extends AnAction {
     private final Target target;
     private final RcloneBinaryManager binaryManager = new RcloneBinaryManager();
     private final RcloneTransferService transferService = new RcloneTransferService();
+    private final ReadOnlyTransferService readOnlyTransferService = new ReadOnlyTransferService();
 
     enum Direction {
         UPLOAD,
@@ -55,6 +57,11 @@ abstract class TransferAction extends AnAction {
 
         event.getPresentation().setEnabled(correctSelection);
         event.getPresentation().setVisible(toolbarPlace || correctSelection);
+    }
+
+    @Override
+    public @NotNull ActionUpdateThread getActionUpdateThread() {
+        return ActionUpdateThread.BGT;
     }
 
     @Override
@@ -85,11 +92,15 @@ abstract class TransferAction extends AnAction {
             return;
         }
 
+        if (direction == Direction.DOWNLOAD && runReadOnlyDownload(project, selectedFiles)) {
+            return;
+        }
+
         List<RcloneTransferService.TransferItem> items = new ArrayList<>();
 
         try {
             for (VirtualFile file : selectedFiles) {
-                RcloneTransferService.TransferItem item = resolveTransferItem(project, file);
+                RcloneTransferService.TransferItem item = transferService.resolveTransferItem(file);
                 if (item == null) {
                     showNotification(
                         project,
@@ -190,6 +201,92 @@ abstract class TransferAction extends AnAction {
         }.queue();
     }
 
+    private boolean runReadOnlyDownload(Project project, List<VirtualFile> selectedFiles) {
+        List<ReadOnlyTransferService.ReadOnlySource> sources = new ArrayList<>();
+
+        try {
+            for (VirtualFile file : selectedFiles) {
+                sources.add(readOnlyTransferService.resolve(file));
+            }
+        } catch (Exception error) {
+            showNotification(project, "Download failed: " + messageOf(error), NotificationType.ERROR);
+            return true;
+        }
+
+        boolean hasReadOnlySource = sources.stream().anyMatch(source -> source != null);
+        if (!hasReadOnlySource) {
+            return false;
+        }
+
+        if (sources.stream().anyMatch(source -> source == null)) {
+            showNotification(
+                project,
+                "The selected files must use the same read only download mode.",
+                NotificationType.WARNING
+            );
+            return true;
+        }
+
+        if (target == Target.FOLDER) {
+            showNotification(
+                project,
+                "Folder download is unavailable in read only mode. Download individual files or remove .skia/read-only-url.txt.",
+                NotificationType.WARNING
+            );
+            return true;
+        }
+
+        Notification liveNotification = NotificationGroupManager.getInstance()
+            .getNotificationGroup(NOTIFICATION_GROUP)
+            .createNotification(TITLE, "Downloading via HTTP", NotificationType.INFORMATION);
+        liveNotification.notify(project);
+
+        new Task.Backgroundable(project, "Downloading via HTTP", false) {
+            @Override
+            public void run(@NotNull ProgressIndicator indicator) {
+                indicator.setIndeterminate(true);
+
+                try {
+                    for (int index = 0; index < selectedFiles.size(); index++) {
+                        VirtualFile file = selectedFiles.get(index);
+                        ReadOnlyTransferService.ReadOnlySource source = sources.get(index);
+                        String itemLabel = selectedFiles.size() > 1
+                            ? (index + 1) + "/" + selectedFiles.size() + " " + source.relativePath()
+                            : source.relativePath();
+
+                        reportProgress(
+                            indicator,
+                            liveNotification,
+                            "Downloading via HTTP: " + itemLabel
+                        );
+                        byte[] body = readOnlyTransferService.download(
+                            source,
+                            message -> reportProgress(indicator, liveNotification, message)
+                        );
+                        Files.write(Path.of(file.getPath()), body);
+                        file.refresh(false, false);
+                    }
+
+                    indicator.setText("Download finished.");
+                    indicator.setText2("");
+                    finishNotification(
+                        project,
+                        liveNotification,
+                        "Read only download finished.",
+                        NotificationType.INFORMATION
+                    );
+                } catch (Exception error) {
+                    String failedMessage = "Download failed: " + messageOf(error);
+                    indicator.setText(failedMessage);
+                    indicator.setText2("");
+                    finishNotification(project, liveNotification, failedMessage, NotificationType.ERROR);
+                }
+            }
+        }.queue();
+
+        return true;
+    }
+
     private List<VirtualFile> selectedFiles(AnActionEvent event) {
         VirtualFile[] files = event.getData(CommonDataKeys.VIRTUAL_FILE_ARRAY);
         if (files != null && files.length > 0) {
@@ -202,47 +299,6 @@ abstract class TransferAction extends AnAction {
 
     private boolean isExpectedTarget(VirtualFile file) {
         return (target == Target.FOLDER) == file.isDirectory();
-    }
-
-    private RcloneTransferService.TransferItem resolveTransferItem(Project project, VirtualFile file) {
-        Path itemPath = Path.of(file.getPath()).toAbsolutePath().normalize();
-        Path projectRoot = project.getBasePath() == null || project.getBasePath().isBlank()
-            ? null
-            : Path.of(project.getBasePath()).toAbsolutePath().normalize();
-        Path rootPath = projectRoot != null && itemPath.startsWith(projectRoot)
-            ? projectRoot
-            : findRcloneRoot(itemPath, file.isDirectory());
-
-        if (rootPath == null || !Files.isRegularFile(rootPath.resolve("rclone.conf"))) {
-            rootPath = findRcloneRoot(itemPath, file.isDirectory());
-        }
-        if (rootPath == null) {
-            return null;
-        }
-
-        Path relativePath = rootPath.relativize(itemPath);
-        if (relativePath.toString().isBlank() || relativePath.startsWith("..") || relativePath.isAbsolute()) {
-            throw new IllegalStateException("Could not make a project-relative file path.");
-        }
-
-        return new RcloneTransferService.TransferItem(
-            rootPath,
-            rootPath.resolve("rclone.conf"),
-            relativePath.toString(),
-            file.isDirectory()
-        );
-    }
-
-    private Path findRcloneRoot(Path itemPath, boolean directory) {
-        Path currentPath = directory ? itemPath : itemPath.getParent();
-
-        while (currentPath != null) {
-            if (Files.isRegularFile(currentPath.resolve("rclone.conf"))) {
-                return currentPath;
-            }
-            currentPath = currentPath.getParent();
-        }
-        return null;
     }
 
     private void reportProgress(ProgressIndicator indicator, Notification notification, String message) {

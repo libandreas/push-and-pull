@@ -1,4 +1,6 @@
 src/**
+.jbignore
+**/tessdata/**
 build/**
 .gradle/**
 .vscode/**

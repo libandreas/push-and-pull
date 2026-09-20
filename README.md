@@ -1,8 +1,8 @@
 # Push & Pull ⬆⬇
 
-Push & Pull lets you upload and download project files without leaving your editor.
+Push & Pull lets you upload, download, and compare project files without leaving your editor.
 
-It adds upload and download actions to the editor, file explorer, project menus, and toolbar. You can transfer a single file, a folder, or multiple selected items directly between your project and a remote server.
+It adds upload, download, and compare actions to the editor and toolbar. You can compare the online version of the current file with your local changes before uploading or downloading. File and folder transfers are also available from the file explorer and project menus.
 
 ![Push & Pull screenshot](https://ceres-assistant.com/screenshots-new/2026-05-26_17-47-39.webp)
 
@@ -10,19 +10,20 @@ It adds upload and download actions to the editor, file explorer, project menus,
 
 - Upload files to your server.
 - Download files from your server.
+- Compare the online version of the current file with your local changes.
 - Upload or download complete folders.
 - Transfer multiple selected files or folders.
 - Use toolbar buttons, context menus, or keyboard shortcuts.
 - See live transfer progress inside the editor.
 - Connect to FTP, SFTP, WebDAV, S3, and many other services supported by rclone.
-
+[README.md](../ceres-assistant.com%20-%20Image%20Editor/README.md)
 Push & Pull uses rclone for the actual file transfers. You only need to describe your server once in an `rclone.conf` file inside your project.
 
 ## Keyboard Shortcuts
 
-- `Ctrl+Up`: upload the current file.
-- `Ctrl+Down`: download the current file.
-- On macOS, use `Cmd+Up` and `Cmd+Down`.
+- **Ctrl+Up**: upload the current file.
+- **Ctrl+Down**: download the current file.
+- On macOS, use **Cmd+Up** and **Cmd+Down**.
 
 Folder transfers and multiple selections are available from the file or project context menu.
 
@@ -40,15 +41,13 @@ Push & Pull uses this file to understand:
 
 Add `rclone.conf` to your `.gitignore` so passwords, access tokens, and server details are not committed to your repository:
 
-```gitignore
+gitignore
 rclone.conf
-```
 
 ## Basic `rclone.conf` Example
 
 The following example creates an FTP connection named `my-server`:
 
-```ini
 [my-server]
 type = ftp
 host = example.com
@@ -58,7 +57,6 @@ explicit_tls = true
 passive = true
 no_check_certificate = true
 pass-visible = my-password
-```
 
 Replace the example host, username, password, and connection options with the details of your server.
 
@@ -68,11 +66,9 @@ Push & Pull sends project files to a destination named `my-project:`.
 
 Create a `my-project` alias in the same `rclone.conf` and point it to the folder where your project should be deployed:
 
-```ini
 [my-project]
 type = alias
 remote = my-server:/httpdocs
-```
 
 In this example:
 
@@ -82,15 +78,11 @@ In this example:
 
 If you upload this local file:
 
-```text
-images/logo.png
-```
+- **images/logo.png**
 
 Push & Pull uploads it to:
 
-```text
-my-project:/images/logo.png
-```
+- **my-project:/images/logo.png**
 
 This keeps the local project structure and the remote project structure in sync.
 
@@ -100,20 +92,16 @@ You can choose any name for the real server connection, but the deploy alias mus
 
 The `pass-visible` option lets you enter the real password in a readable form:
 
-```ini
-pass-visible = my-password
-```
+- **pass-visible = my-password**
 
-Before every upload or download, Push & Pull finds `pass-visible` and asks rclone to obscure that password. It then adds or updates the `pass` option directly below it:
+Before every upload, download, or comparison, Push & Pull finds `pass-visible` and asks rclone to obscure that password. It then adds or updates the `pass` option directly below it:
 
-```ini
-pass-visible = my-password
-pass = obscured-password-created-by-rclone
-```
+- **pass-visible = my-password**
+- **pass = obscured-password-created-by-rclone**
 
 The generated `pass` value is the format rclone expects for the connection. You do not need to run `rclone obscure` yourself or manually copy the generated value.
 
-If the visible password changes, Push & Pull generates a new `pass` value on the next upload or download.
+If the visible password changes, Push & Pull generates a new `pass` value on the next upload, download, or comparison.
 
 `pass-visible` still contains the real password as plain text. Always keep `rclone.conf` private and exclude it from Git.
 
@@ -139,6 +127,14 @@ For example, a WebDAV connection can be used as the real remote while `my-projec
 
 ## Uploading and Downloading
 
+### Read Only Website Downloads
+
+To download and compare files directly from a website, create `.skia/read-only-url.txt` with the website URL:
+
+- **https://example.com**
+
+This works for file downloads and comparisons. Uploads still use rclone, and folder downloads are unavailable.
+
 To upload a file or folder:
 
 1. Select it in the editor or project explorer.
@@ -153,17 +149,24 @@ To download a file or folder:
 
 For example, downloading:
 
-```text
-css/style.css
-```
+- **css/style.css**
 
 reads the remote file from:
 
-```text
-my-project:/css/style.css
-```
+- **my-project:/css/style.css**
 
 and writes it back to the same location in the local project.
+
+## Comparing Online and Local Files
+
+Open a local file and choose `Compare Online with Local`.
+
+Push & Pull downloads the matching online file to the editor's private storage and opens the built-in diff viewer:
+
+- `Online` appears on the left.
+- `Local` appears on the right.
+- Unsaved changes in the current editor are included.
+- Your local file is not overwritten.
 
 ## Finding the Project Configuration
 
@@ -199,8 +202,3 @@ When the transfer finishes, you receive a completion notification. If it fails, 
 ## Bug Reports and Feedback
 
 https://ceres-assistant.com/web/contact.php
-
-## Privacy Policy
-
-https://ceres-assistant.com/web/privacy-policy.php
-

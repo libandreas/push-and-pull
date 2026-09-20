@@ -2,6 +2,7 @@ const path = require("path");
 const os = require("os");
 const fs = require("fs");
 const fsPromises = require("fs/promises");
+const http = require("http");
 const https = require("https");
 const { spawn, execFile } = require("child_process");
 const { promisify } = require("util");
@@ -16,6 +17,10 @@ const RCLONE_DOWNLOAD_TIMEOUT_MS = 30000;
 const RCLONE_PROGRESS_THROTTLE_MS = 250;
 const RCLONE_UPDATE_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const RCLONE_FINISH_MESSAGE_MS = 1000;
+const READ_ONLY_CONFIG_PATH = path.join(".skia", "read-only-url.txt");
+const READ_ONLY_REQUEST_TIMEOUT_MS = 30000;
+const READ_ONLY_MAX_REDIRECTS = 10;
+const BROWSER_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36";
 const PLATFORM_ARCHIVE_NAMES = {
 	win32: {
 		amd64: "windows-amd64",
@@ -78,6 +83,9 @@ function activate(context) {
 	statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
 	context.subscriptions.push(
 		statusBarItem,
+		vscode.commands.registerCommand("pushR.compareFile", (uri) => {
+			compareFile(uri);
+		}),
 		vscode.commands.registerCommand("pushR.uploadFile", (uri, selectedUris) => {
 			runRcloneMany("upload", uri, selectedUris, vscode.FileType.File);
 		}),
@@ -93,6 +101,101 @@ function activate(context) {
 	);
 }
 
+async function compareFile(uri) {
+	const localUri = uri instanceof vscode.Uri
+		? uri
+		: vscode.window.activeTextEditor?.document?.uri;
+
+	if (!localUri || localUri.scheme !== "file") {
+		vscode.window.showWarningMessage("Open a local file first.");
+		return;
+	}
+
+	try {
+		const readOnlySource = await resolveReadOnlySource(localUri, vscode.FileType.File);
+
+		if (readOnlySource) {
+			await compareReadOnlyFile(localUri, readOnlySource);
+			return;
+		}
+
+		const transferRoot = await resolveTransferRoot(localUri, vscode.FileType.File);
+
+		if (!transferRoot) {
+			vscode.window.showWarningMessage("Could not find rclone.conf for this file. Put rclone.conf in this file's project root or open the correct workspace.");
+			return;
+		}
+
+		await vscode.window.withProgress({
+			location: vscode.ProgressLocation.Notification,
+			title: `Comparing ${path.basename(localUri.fsPath)}`,
+			cancellable: false
+		}, async (progress) => {
+			progress.report({ message: "Downloading online version..." });
+
+			const rclonePath = await ensureLatestRclone(progress);
+			await makeRclonePasswd(rclonePath, transferRoot.rootPath, transferRoot.configFile);
+
+			const storageUri = extensionContext.storageUri || extensionContext.globalStorageUri;
+			const comparisonFolder = vscode.Uri.joinPath(storageUri, "compare");
+			const onlineUri = vscode.Uri.joinPath(comparisonFolder, transferRoot.relativePath);
+
+			await vscode.workspace.fs.createDirectory(vscode.Uri.file(path.dirname(onlineUri.fsPath)));
+			await execFileAsync(rclonePath, [
+				"--config",
+				transferRoot.configFile,
+				"copyto",
+				joinRemotePath(getRemoteRoot(), transferRoot.relativePath),
+				onlineUri.fsPath,
+				"--local-no-preallocate"
+			], {
+				cwd: transferRoot.rootPath,
+				windowsHide: true
+			});
+
+			await vscode.commands.executeCommand(
+				"vscode.diff",
+				onlineUri,
+				localUri,
+				`${path.basename(localUri.fsPath)}: Online ↔ Local`
+			);
+		});
+	} catch (error) {
+		vscode.window.showErrorMessage(`Compare failed: ${error.message}`);
+	}
+}
+
+async function compareReadOnlyFile(localUri, source) {
+	await vscode.window.withProgress({
+		location: vscode.ProgressLocation.Notification,
+		title: `Comparing ${path.basename(localUri.fsPath)}`,
+		cancellable: false
+	}, async (progress) => {
+		setStatusBar("$(compare-changes) Comparing via HTTP...");
+
+		try {
+			progress.report({ message: "Downloading online version via HTTP..." });
+			const body = await requestReadOnlyFile(source.url, progress, source.relativePath);
+			const storageUri = extensionContext.storageUri || extensionContext.globalStorageUri;
+			const comparisonFolder = vscode.Uri.joinPath(storageUri, "compare");
+			const onlineUri = vscode.Uri.joinPath(comparisonFolder, source.relativePath);
+
+			await vscode.workspace.fs.createDirectory(vscode.Uri.file(path.dirname(onlineUri.fsPath)));
+			await vscode.workspace.fs.writeFile(onlineUri, body);
+			progress.report({ message: "Opening comparison..." });
+
+			await vscode.commands.executeCommand(
+				"vscode.diff",
+				onlineUri,
+				localUri,
+				`${path.basename(localUri.fsPath)}: Online ↔ Local`
+			);
+		} finally {
+			clearStatusBar();
+		}
+	});
+}
+
 async function runRcloneMany(action, uri, selectedUris, expectedType = vscode.FileType.File) {
 	try {
 		const itemUris = getSelectedFileUris(uri, selectedUris);
@@ -101,6 +204,10 @@ async function runRcloneMany(action, uri, selectedUris, expectedType = vscode.Fi
 			vscode.window.showWarningMessage(expectedType === vscode.FileType.Directory
 				? "Select a folder first."
 				: "Open or select a file first.");
+			return;
+		}
+
+		if (action === "download" && await runReadOnlyDownload(itemUris, expectedType)) {
 			return;
 		}
 
@@ -189,7 +296,61 @@ async function runRcloneMany(action, uri, selectedUris, expectedType = vscode.Fi
 		clearStatusBar();
 	} catch (error) {
 		clearStatusBar();
+		vscode.window.showErrorMessage(
+			`${action === "upload" ? "Upload" : "Download"} failed: ${error.message}`
+		);
 	}
+}
+
+async function runReadOnlyDownload(itemUris, expectedType) {
+	const sources = [];
+
+	for (const itemUri of itemUris) {
+		const source = await resolveReadOnlySource(itemUri, expectedType);
+		sources.push(source);
+	}
+
+	if (!sources.some(Boolean)) {
+		return false;
+	}
+
+	if (sources.some((source) => !source)) {
+		vscode.window.showWarningMessage("The selected files must use the same read only download mode.");
+		return true;
+	}
+
+	if (expectedType === vscode.FileType.Directory) {
+		vscode.window.showWarningMessage("Folder download is unavailable in read only mode. Download individual files or disable read only mode.");
+		return true;
+	}
+
+	await vscode.window.withProgress({
+		location: vscode.ProgressLocation.Notification,
+		title: "Downloading via HTTP",
+		cancellable: false
+	}, async (progress) => {
+		setStatusBar("$(arrow-down) Downloading via HTTP...");
+
+		try {
+			for (let index = 0; index < itemUris.length; index += 1) {
+				const source = sources[index];
+				const itemLabel = itemUris.length > 1
+					? `${index + 1}/${itemUris.length} ${source.relativePath}`
+					: source.relativePath;
+
+				progress.report({ message: `Downloading via HTTP: ${itemLabel}` });
+				const body = await requestReadOnlyFile(source.url, progress, itemLabel);
+				await vscode.workspace.fs.writeFile(itemUris[index], body);
+			}
+
+			progress.report({ message: "Download finished." });
+			vscode.window.showInformationMessage("Read only download finished.");
+		} finally {
+			clearStatusBar();
+		}
+	});
+
+	return true;
 }
 
 function getSelectedFileUris(uri, selectedUris) {
@@ -211,8 +372,14 @@ function getSelectedFileUris(uri, selectedUris) {
 }
 
 async function resolveTransferRoot(itemUri, resourceType) {
-	const workspaceFolder = vscode.workspace.getWorkspaceFolder(itemUri);
-	const rootPath = workspaceFolder?.uri.fsPath || await findRcloneRoot(itemUri.fsPath, resourceType);
+	let rootPath = await findRcloneRoot(itemUri.fsPath, resourceType);
+
+	// We do not like the workspace method because it limits where the extension can work.
+	// We want it to work everywhere by going backwards up the directory tree to find rclone.conf.
+	// if (!rootPath) {
+	// 	const workspaceFolder = vscode.workspace.getWorkspaceFolder(itemUri);
+	// 	rootPath = workspaceFolder?.uri.fsPath;
+	// }
 
 	if (!rootPath) {
 		return undefined;
@@ -229,6 +396,66 @@ async function resolveTransferRoot(itemUri, resourceType) {
 		configFile: path.join(rootPath, "rclone.conf"),
 		relativePath
 	};
+}
+
+async function resolveReadOnlySource(itemUri, resourceType) {
+	let currentPath = resourceType === vscode.FileType.Directory ? itemUri.fsPath : path.dirname(itemUri.fsPath);
+
+	while (true) {
+		const configFile = path.join(currentPath, READ_ONLY_CONFIG_PATH);
+
+		try {
+			const configuredUrl = (await fsPromises.readFile(configFile, "utf8")).trim();
+
+			if (!configuredUrl) {
+				throw new Error(`${READ_ONLY_CONFIG_PATH} is empty.`);
+			}
+
+			let baseUrl;
+
+			try {
+				baseUrl = new URL(configuredUrl);
+			} catch (error) {
+				throw new Error(`${READ_ONLY_CONFIG_PATH} must contain a valid HTTP or HTTPS URL.`);
+			}
+
+			if (baseUrl.protocol !== "http:" && baseUrl.protocol !== "https:") {
+				throw new Error(`${READ_ONLY_CONFIG_PATH} must contain an HTTP or HTTPS URL.`);
+			}
+
+			const relativePath = path.relative(currentPath, itemUri.fsPath);
+
+			if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
+				throw new Error("Could not make a project-relative file path.");
+			}
+
+			const encodedPath = relativePath
+				.split(path.sep)
+				.filter(Boolean)
+				.map((segment) => encodeURIComponent(segment))
+				.join("/");
+			const baseUrlWithSlash = baseUrl.href.endsWith("/") ? baseUrl.href : `${baseUrl.href}/`;
+
+			return {
+				rootPath: currentPath,
+				baseUrl,
+				relativePath,
+				url: new URL(encodedPath, baseUrlWithSlash)
+			};
+		} catch (error) {
+			if (error.code !== "ENOENT") {
+				throw error;
+			}
+		}
+
+		const parentPath = path.dirname(currentPath);
+
+		if (parentPath === currentPath) {
+			return undefined;
+		}
+
+		currentPath = parentPath;
+	}
 }
 
 async function findRcloneRoot(itemPath, resourceType) {
@@ -891,6 +1118,71 @@ async function request(url) {
 
 		requestInstance.on("timeout", () => {
 			requestInstance.destroy(new Error("Request timed out."));
+		});
+		requestInstance.on("error", reject);
+	});
+}
+
+async function requestReadOnlyFile(url, progress, itemLabel, redirectCount = 0) {
+	if (redirectCount > READ_ONLY_MAX_REDIRECTS) {
+		throw new Error("HTTP download failed: too many redirects.");
+	}
+
+	return new Promise((resolve, reject) => {
+		const requestClient = url.protocol === "http:" ? http : https;
+		const requestInstance = requestClient.get(url, {
+			timeout: READ_ONLY_REQUEST_TIMEOUT_MS,
+			headers: {
+				"User-Agent": BROWSER_USER_AGENT,
+				"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+				"Accept-Language": "en-US,en;q=0.9",
+				"Accept-Encoding": "identity",
+				"Cache-Control": "no-cache"
+			}
+		}, (response) => {
+			const statusCode = response.statusCode || 0;
+
+			if (statusCode >= 300 && statusCode < 400) {
+				const location = response.headers.location;
+				response.resume();
+
+				if (!location) {
+					reject(new Error(`HTTP download failed: ${statusCode} redirect without a location.`));
+					return;
+				}
+
+				const redirectUrl = new URL(location, url);
+				requestReadOnlyFile(redirectUrl, progress, itemLabel, redirectCount + 1).then(resolve, reject);
+				return;
+			}
+
+			if (statusCode < 200 || statusCode >= 300) {
+				const statusMessage = response.statusMessage ? ` ${response.statusMessage}` : "";
+				response.resume();
+				reject(new Error(`HTTP download failed: ${statusCode}${statusMessage}.`));
+				return;
+			}
+
+			const chunks = [];
+			const totalBytes = Number(response.headers["content-length"] || 0);
+			let downloadedBytes = 0;
+
+			response.on("data", (chunk) => {
+				chunks.push(chunk);
+				downloadedBytes += chunk.length;
+
+				const amount = totalBytes > 0
+					? `${Math.min(100, Math.round((downloadedBytes / totalBytes) * 100))}%`
+					: formatBytes(downloadedBytes);
+				progress.report({ message: `Downloading via HTTP: ${itemLabel} ${amount}` });
+			});
+			response.on("end", () => resolve(Buffer.concat(chunks)));
+			response.on("aborted", () => reject(new Error("HTTP download failed: server closed the response early.")));
+			response.on("error", (error) => reject(new Error(`HTTP download failed: ${error.message}`)));
+		});
+
+		requestInstance.on("timeout", () => {
+			requestInstance.destroy(new Error("HTTP download failed: request timed out."));
 		});
 		requestInstance.on("error", reject);
 	});

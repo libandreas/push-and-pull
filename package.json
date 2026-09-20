@@ -24,7 +24,7 @@
 		"devops",
 		"ssh"
 	],
-	"version": "26.7.1",
+	"version": "26.8.1",
 	"publisher": "pa-andreas",
 	"license": "GPL-3.0-or-later",
 	"icon": "favicon-4.png",
@@ -49,6 +49,7 @@
 		"Other"
 	],
 	"activationEvents": [
+		"onCommand:pushR.compareFile",
 		"onCommand:pushR.uploadFile",
 		"onCommand:pushR.downloadFile",
 		"onCommand:pushR.uploadFolder",
@@ -74,6 +75,14 @@
 			}
 		},
 		"commands": [
+			{
+				"command": "pushR.compareFile",
+				"title": "Compare Online with Local",
+				"icon": {
+					"light": "media/compare.svg",
+					"dark": "media/compare.svg"
+				}
+			},
 			{
 				"command": "pushR.uploadFile",
 				"title": "Push (Upload)",
@@ -134,6 +143,11 @@
 					"group": "navigation@51"
 				},
 				{
+					"command": "pushR.compareFile",
+					"when": "resourceScheme == file && explorerResourceIsFolder == false",
+					"group": "navigation@52"
+				},
+				{
 					"command": "pushR.uploadFolder",
 					"when": "resourceScheme == file && explorerResourceIsFolder == true",
 					"group": "navigation@52"
@@ -154,6 +168,11 @@
 					"command": "pushR.downloadFile",
 					"when": "resourceScheme == file",
 					"group": "navigation@51"
+				},
+				{
+					"command": "pushR.compareFile",
+					"when": "resourceScheme == file",
+					"group": "navigation@52"
 				}
 			],
 			"editor/context": [
@@ -166,9 +185,19 @@
 					"command": "pushR.downloadFile",
 					"when": "resourceScheme == file",
 					"group": "navigation@51"
+				},
+				{
+					"command": "pushR.compareFile",
+					"when": "resourceScheme == file",
+					"group": "navigation@52"
 				}
 			],
 			"editor/title": [
+				{
+					"command": "pushR.compareFile",
+					"when": "resourceScheme == file",
+					"group": "navigation@-10000"
+				},
 				{
 					"command": "pushR.downloadFile",
 					"when": "resourceScheme == file",
