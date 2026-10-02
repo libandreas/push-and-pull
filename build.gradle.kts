@@ -45,7 +45,6 @@ intellijPlatform {
     sandboxContainer.set(localProjectBuildRoot.resolve("sandbox"))
 
     pluginConfiguration {
-        name = "Push & Pull"
         version = project.version.toString()
         description = marketplaceReadme.map { markdown ->
             val document = org.commonmark.parser.Parser.builder().build().parse(markdown)
