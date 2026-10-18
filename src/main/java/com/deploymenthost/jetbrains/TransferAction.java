@@ -36,7 +36,8 @@ abstract class TransferAction extends AnAction {
 
     enum Direction {
         UPLOAD,
-        DOWNLOAD
+        DOWNLOAD,
+        SYNC
     }
 
     enum Target {
@@ -100,6 +101,10 @@ abstract class TransferAction extends AnAction {
 
         try {
             for (VirtualFile file : selectedFiles) {
+                if (direction == Direction.SYNC && readOnlyTransferService.resolve(file) != null) {
+                    showNotification(project, "Bsyncs is unavailable in read-only mode.", NotificationType.WARNING);
+                    return;
+                }
                 RcloneTransferService.TransferItem item = transferService.resolveTransferItem(file);
                 if (item == null) {
                     showNotification(
@@ -114,6 +119,14 @@ abstract class TransferAction extends AnAction {
         } catch (Exception error) {
             showNotification(project, messageOf(error), NotificationType.ERROR);
             return;
+        }
+
+        if (direction == Direction.SYNC) {
+            showNotification(
+                project,
+                "Bsyncs can delete local files deleted on the server, and server files deleted locally. Use with caution.",
+                NotificationType.INFORMATION
+            );
         }
 
         Notification liveNotification = NotificationGroupManager.getInstance()
@@ -151,9 +164,11 @@ abstract class TransferAction extends AnAction {
                         String itemLabel = items.size() > 1
                             ? (index + 1) + "/" + items.size() + " " + item.relativePath()
                             : item.relativePath();
-                        String startingMessage = direction == Direction.UPLOAD
-                            ? "Starting upload: " + itemLabel
-                            : "Starting download: " + itemLabel;
+                        String startingMessage = switch (direction) {
+                            case UPLOAD -> "Starting upload: " + itemLabel;
+                            case DOWNLOAD -> "Starting download: " + itemLabel;
+                            case SYNC -> "Starting Bsyncs: " + itemLabel;
+                        };
 
                         reportProgress(indicator, liveNotification, startingMessage);
                         transferService.runTransfer(
@@ -166,33 +181,41 @@ abstract class TransferAction extends AnAction {
                                 String progressMessage = message;
 
                                 if (items.size() > 1) {
-                                    String directionPrefix = direction == Direction.UPLOAD
-                                        ? "Uploading: "
-                                        : "Downloading: ";
+                                    String directionPrefix = switch (direction) {
+                                        case UPLOAD -> "Uploading: ";
+                                        case DOWNLOAD -> "Downloading: ";
+                                        case SYNC -> "Syncing: ";
+                                    };
                                     String details = message.startsWith(directionPrefix)
                                         ? message.substring(directionPrefix.length())
                                         : message;
-                                    progressMessage = directionPrefix + itemLabel + " — " + details;
+                                    progressMessage = directionPrefix + itemLabel + ": " + details;
                                 }
 
                                 reportProgress(indicator, liveNotification, progressMessage);
                             }
                         );
 
-                        if (direction == Direction.DOWNLOAD) {
+                        if (direction != Direction.UPLOAD) {
                             selectedFiles.get(index).refresh(false, true);
                         }
                     }
 
-                    String finishedMessage = direction == Direction.UPLOAD
-                        ? "Upload finished."
-                        : "Download finished.";
+                    String finishedMessage = switch (direction) {
+                        case UPLOAD -> "Upload finished.";
+                        case DOWNLOAD -> "Download finished.";
+                        case SYNC -> "Bsyncs finished.";
+                    };
                     indicator.setText(finishedMessage);
                     indicator.setText2("");
                     finishNotification(project, liveNotification, finishedMessage, NotificationType.INFORMATION);
                 } catch (Exception error) {
-                    String failedMessage = (direction == Direction.UPLOAD ? "Upload failed: " : "Download failed: ")
-                        + messageOf(error);
+                    String failedMessage = switch (direction) {
+                        case UPLOAD -> "Upload failed: ";
+                        case DOWNLOAD -> "Download failed: ";
+                        case SYNC -> "Bsyncs failed: ";
+                    };
+                    failedMessage += messageOf(error);
                     indicator.setText(failedMessage);
                     indicator.setText2("");
                     finishNotification(project, liveNotification, failedMessage, NotificationType.ERROR);
@@ -221,7 +244,7 @@ abstract class TransferAction extends AnAction {
         if (sources.stream().anyMatch(source -> source == null)) {
             showNotification(
                 project,
-                "The selected files must use the same read only download mode.",
+                "The selected files must use the same read-only download mode.",
                 NotificationType.WARNING
             );
             return true;
@@ -230,7 +253,7 @@ abstract class TransferAction extends AnAction {
         if (target == Target.FOLDER) {
             showNotification(
                 project,
-                "Folder download is unavailable in read only mode. Download individual files or remove .skia/read-only-url.txt.",
+                "Folder download is unavailable in read-only mode. Download individual files or remove .skia/read-only-url.txt.",
                 NotificationType.WARNING
             );
             return true;
@@ -272,7 +295,7 @@ abstract class TransferAction extends AnAction {
                     finishNotification(
                         project,
                         liveNotification,
-                        "Read only download finished.",
+                        "Read-only download finished.",
                         NotificationType.INFORMATION
                     );
                 } catch (Exception error) {
@@ -303,7 +326,7 @@ abstract class TransferAction extends AnAction {
 
     private void reportProgress(ProgressIndicator indicator, Notification notification, String message) {
         int separatorIndex = message.indexOf(':');
-        if (separatorIndex > 0 && (message.startsWith("Uploading:") || message.startsWith("Downloading:"))) {
+        if (separatorIndex > 0 && (message.startsWith("Uploading:") || message.startsWith("Downloading:") || message.startsWith("Syncing:"))) {
             indicator.setText(message.substring(0, separatorIndex) + "...");
             indicator.setText2(message.substring(separatorIndex + 1).trim());
         } else {
@@ -330,7 +353,7 @@ abstract class TransferAction extends AnAction {
 
     private void showNotification(Project project, String message, NotificationType notificationType) {
         NotificationGroupManager.getInstance()
-            .getNotificationGroup(NOTIFICATION_GROUP)
+            .getNotificationGroup(notificationType == NotificationType.ERROR ? "Push & Pull Errors" : NOTIFICATION_GROUP)
             .createNotification(TITLE, StringUtil.escapeXmlEntities(message), notificationType)
             .notify(project);
     }

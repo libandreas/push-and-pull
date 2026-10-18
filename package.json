@@ -1,30 +1,28 @@
 {
 	"name": "push-and-pull",
-	"displayName": "Push & Pull / FTP & WebDAV",
-	"description": "Deploy interface for sending, uploading, and downloading files with buttons in the editor and context menus. Support for various protocols and cloud storages via rclone.",
+	"displayName": "Push & Pull: FTP, SFTP & WebDAV",
+	"description": "FTP, SFTP and WebDAV client for VS Code. Upload and download files or folders, compare local and remote files, and access cloud storage through rclone.",
 	"keywords": [
-		"deploy",
-		"upload",
-		"download",
-		"sync",
-		"file-transfer",
-		"rclone",
 		"ftp",
 		"sftp",
+		"ftps",
 		"webdav",
+		"rclone",
+		"upload",
+		"download",
+		"deploy",
+		"deployment",
+		"file-transfer",
+		"remote",
+		"compare",
+		"diff",
 		"s3",
-		"s3-compatible",
 		"smb",
-		"swift",
-		"azure-blob",
+		"cloud",
 		"google-drive",
-		"one-drive",
-		"storj",
-		"remote-server",
-		"devops",
-		"ssh"
+		"onedrive"
 	],
-	"version": "26.8.1",
+	"version": "26.10.4",
 	"publisher": "pa-andreas",
 	"license": "GPL-3.0-or-later",
 	"icon": "favicon-4.png",
@@ -43,17 +41,16 @@
 		"vscode": "^1.85.0"
 	},
 	"categories": [
-		"Azure",
-		"SCM Providers",
-		"Programming Languages",
 		"Other"
 	],
 	"activationEvents": [
+		"onCommand:pushR.createConfiguration",
 		"onCommand:pushR.compareFile",
 		"onCommand:pushR.uploadFile",
 		"onCommand:pushR.downloadFile",
 		"onCommand:pushR.uploadFolder",
-		"onCommand:pushR.downloadFolder"
+		"onCommand:pushR.downloadFolder",
+		"onCommand:pushR.syncFolder"
 	],
 	"main": "./extension-4.js",
 	"contributes": {
@@ -62,19 +59,23 @@
 			"properties": {
 				"pushPull.transfers": {
 					"type": "number",
-					"default": 4,
+					"default": 2,
 					"minimum": 1,
 					"description": "Push & Pull rclone arg: --transfers. Number of file transfers to run in parallel."
 				},
 				"pushPull.checkers": {
 					"type": "number",
-					"default": 8,
+					"default": 4,
 					"minimum": 1,
 					"description": "Push & Pull rclone arg: --checkers. Number of checkers to run in parallel while scanning and comparing files."
 				}
 			}
 		},
 		"commands": [
+			{
+				"command": "pushR.createConfiguration",
+				"title": "Push & Pull: Create Configuration"
+			},
 			{
 				"command": "pushR.compareFile",
 				"title": "Compare Online with Local",
@@ -98,6 +99,10 @@
 					"light": "media/down.svg",
 					"dark": "media/down.svg"
 				}
+			},
+			{
+				"command": "pushR.syncFolder",
+				"title": "Sync Folder (Bsyncs)"
 			},
 			{
 				"command": "pushR.uploadFolder",
@@ -156,6 +161,11 @@
 					"command": "pushR.downloadFolder",
 					"when": "resourceScheme == file && explorerResourceIsFolder == true",
 					"group": "navigation@53"
+				},
+				{
+					"command": "pushR.syncFolder",
+					"when": "resourceScheme == file && explorerResourceIsFolder == true",
+					"group": "navigation@54"
 				}
 			],
 			"openEditors/context": [

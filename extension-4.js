@@ -8,6 +8,7 @@ const { spawn, execFile } = require("child_process");
 const { promisify } = require("util");
 const AdmZip = require("adm-zip");
 const vscode = require("vscode");
+const { createHash } = require("crypto");
 
 const execFileAsync = promisify(execFile);
 
@@ -77,12 +78,70 @@ const PLATFORM_ARCHIVE_NAMES = {
 let extensionContext;
 let statusBarItem;
 let rcloneReadyPromise;
+let transferRunning = false;
 
 function activate(context) {
 	extensionContext = context;
 	statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
 	context.subscriptions.push(
 		statusBarItem,
+		vscode.commands.registerCommand("pushR.createConfiguration", async () => {
+			try {
+				const folders = vscode.workspace.workspaceFolders;
+				let folderUri;
+
+				if (folders?.length === 1) {
+					folderUri = folders[0].uri;
+				} else if (folders?.length > 1) {
+					const folder = await vscode.window.showWorkspaceFolderPick({
+						placeHolder: "Choose the project for Push & Pull"
+					});
+					folderUri = folder?.uri;
+				} else {
+					const selected = await vscode.window.showOpenDialog({
+						canSelectFiles: false,
+						canSelectFolders: true,
+						canSelectMany: false,
+						openLabel: "Select Project Folder"
+					});
+					folderUri = selected?.[0];
+				}
+
+				if (!folderUri) return;
+				if (folderUri.scheme !== "file") {
+					vscode.window.showWarningMessage("Choose a local project folder.");
+					return;
+				}
+
+				const configUri = vscode.Uri.joinPath(folderUri, "rclone.conf");
+				const template = `# Replace the server details and destination below.
+# Keep this file private and add rclone.conf to your .gitignore.
+
+[my-server]
+type = ftp
+host = example.com
+user = my-user
+port = 21
+# Explicit FTPS. Set to false only if your server requires plain FTP.
+explicit_tls = true
+pass-visible = my-password
+
+[my-project]
+type = alias
+remote = my-server:/httpdocs
+`;
+				try {
+					await fsPromises.writeFile(configUri.fsPath, template, { encoding: "utf8", flag: "wx" });
+				} catch (error) {
+					if (error.code !== "EEXIST") throw error;
+				}
+
+				const document = await vscode.workspace.openTextDocument(configUri);
+				await vscode.window.showTextDocument(document);
+			} catch (error) {
+				vscode.window.showErrorMessage(`Configuration failed: ${error.message}`);
+			}
+		}),
 		vscode.commands.registerCommand("pushR.compareFile", (uri) => {
 			compareFile(uri);
 		}),
@@ -97,6 +156,66 @@ function activate(context) {
 		}),
 		vscode.commands.registerCommand("pushR.downloadFolder", (uri, selectedUris) => {
 			runRcloneMany("download", uri, selectedUris, vscode.FileType.Directory);
+		}),
+		vscode.commands.registerCommand("pushR.syncFolder", async (uri, selectedUris) => {
+			if (transferRunning) {
+				vscode.window.showWarningMessage("Wait for the current transfer to finish.");
+				return;
+			}
+			transferRunning = true;
+			try {
+				const items = [];
+				for (const folderUri of getSelectedFileUris(uri, selectedUris)) {
+					if (folderUri.scheme !== "file" || (await vscode.workspace.fs.stat(folderUri)).type !== vscode.FileType.Directory) {
+						throw new Error("Select project subfolders to sync.");
+					}
+					if (await resolveReadOnlySource(folderUri, vscode.FileType.Directory)) {
+						throw new Error("Sync is unavailable in read-only mode.");
+					}
+					const root = await resolveTransferRoot(folderUri, vscode.FileType.Directory);
+					if (!root) throw new Error("Could not find rclone.conf for this folder.");
+					items.push({ ...root, localPath: folderUri.fsPath, remotePath: joinRemotePath(getRemoteRoot(), root.relativePath) });
+				}
+				if (!items.length) throw new Error("Select a project subfolder first.");
+				vscode.window.showInformationMessage("Bsyncs can delete local files deleted on the server, and server files deleted locally. Use with caution.");
+				await vscode.window.withProgress({
+					location: vscode.ProgressLocation.Notification,
+					title: "Bsyncs",
+					cancellable: false
+				}, async (progress) => {
+					const rclonePath = await ensureLatestRclone(progress);
+					for (const item of [...new Map(items.map((item) => [item.configFile, item])).values()]) {
+						await makeRclonePasswd(rclonePath, item.rootPath, item.configFile);
+					}
+					const settings = vscode.workspace.getConfiguration("pushPull");
+					for (const item of [...new Map(items.map((item) => [item.localPath, item])).values()]) {
+						const projectKey = createHash("sha256").update(path.resolve(item.rootPath)).digest("hex");
+						const folderKey = createHash("sha256").update(item.relativePath).digest("hex");
+						const workDirectory = path.join(extensionContext.globalStorageUri.fsPath, "bisync", projectKey, folderKey);
+						const firstRun = !await fileExists(workDirectory);
+						await fsPromises.mkdir(workDirectory, { recursive: true });
+						const args = [
+							"--config", item.configFile,
+							"bisync", item.localPath, item.remotePath,
+							"--workdir", workDirectory,
+							"--conflict-resolve", "newer",
+							"--exclude", "[rR][cC][lL][oO][nN][eE].[cC][oO][nN][fF]",
+							"--transfers", String(Math.max(1, Number(settings.get("transfers", 2)) || 2)),
+							"--checkers", String(Math.max(1, Number(settings.get("checkers", 4)) || 4)),
+							"--stats", "1s", "--stats-one-line", "--local-no-preallocate"
+						];
+						if (firstRun) args.push("--resync-mode", "newer");
+						await runRcloneCommand({ rclonePath, args, cwd: item.rootPath, progress, action: "sync", itemLabel: item.relativePath });
+					}
+					progress.report({ message: "Bsyncs finished." });
+					await delay(RCLONE_FINISH_MESSAGE_MS);
+				});
+			} catch (error) {
+				vscode.window.showErrorMessage(`Bsyncs stopped: ${error.message}`);
+			} finally {
+				transferRunning = false;
+				clearStatusBar();
+			}
 		})
 	);
 }
@@ -197,8 +316,16 @@ async function compareReadOnlyFile(localUri, source) {
 }
 
 async function runRcloneMany(action, uri, selectedUris, expectedType = vscode.FileType.File) {
+	if (transferRunning) {
+		vscode.window.showWarningMessage("Wait for the current transfer to finish.");
+		return;
+	}
+	transferRunning = true;
 	try {
 		const itemUris = getSelectedFileUris(uri, selectedUris);
+		if (itemUris.some((itemUri) => path.basename(itemUri.fsPath).toLowerCase() === "rclone.conf")) {
+			throw new Error("rclone.conf is private and cannot be transferred.");
+		}
 
 		if (!itemUris.length) {
 			vscode.window.showWarningMessage(expectedType === vscode.FileType.Directory
@@ -286,10 +413,9 @@ async function runRcloneMany(action, uri, selectedUris, expectedType = vscode.Fi
 				});
 				await delay(RCLONE_FINISH_MESSAGE_MS);
 			} catch (error) {
-				progress.report({
-					message: `${action === "upload" ? "Upload failed" : "Download failed"}: ${error.message}`
-				});
-				await delay(RCLONE_FINISH_MESSAGE_MS);
+				vscode.window.showErrorMessage(
+					`${action === "upload" ? "Upload" : "Download"} failed: ${error.message}`
+				);
 			}
 		});
 
@@ -299,6 +425,8 @@ async function runRcloneMany(action, uri, selectedUris, expectedType = vscode.Fi
 		vscode.window.showErrorMessage(
 			`${action === "upload" ? "Upload" : "Download"} failed: ${error.message}`
 		);
+	} finally {
+		transferRunning = false;
 	}
 }
 
@@ -315,12 +443,12 @@ async function runReadOnlyDownload(itemUris, expectedType) {
 	}
 
 	if (sources.some((source) => !source)) {
-		vscode.window.showWarningMessage("The selected files must use the same read only download mode.");
+		vscode.window.showWarningMessage("The selected files must use the same read-only download mode.");
 		return true;
 	}
 
 	if (expectedType === vscode.FileType.Directory) {
-		vscode.window.showWarningMessage("Folder download is unavailable in read only mode. Download individual files or disable read only mode.");
+		vscode.window.showWarningMessage("Folder download is unavailable in read-only mode. Download individual files or disable read-only mode.");
 		return true;
 	}
 
@@ -344,7 +472,7 @@ async function runReadOnlyDownload(itemUris, expectedType) {
 			}
 
 			progress.report({ message: "Download finished." });
-			vscode.window.showInformationMessage("Read only download finished.");
+			vscode.window.showInformationMessage("Read-only download finished.");
 		} finally {
 			clearStatusBar();
 		}
@@ -391,9 +519,13 @@ async function resolveTransferRoot(itemUri, resourceType) {
 		throw new Error("Could not make a project-relative file path.");
 	}
 
+	const configFile = path.join(rootPath, "rclone.conf");
+	const sections = parseRcloneConfig(await fsPromises.readFile(configFile, "utf8"));
+	resolveRcloneRemoteType(sections, "my-project");
+
 	return {
 		rootPath,
-		configFile: path.join(rootPath, "rclone.conf"),
+		configFile,
 		relativePath
 	};
 }
@@ -598,6 +730,7 @@ function buildUploadArgs(rootPath, configFile, relativePath, resourceType, rclon
 		"copy",
 		localPath,
 		remoteDir,
+		"--exclude", "[rR][cC][lL][oO][nN][eE].[cC][oO][nN][fF]",
 		...rcloneArgs
 	];
 }
@@ -615,6 +748,7 @@ function buildDownloadArgs(rootPath, configFile, relativePath, resourceType, rcl
 		remotePath,
 		localDir,
 		"--local-no-preallocate",
+		"--exclude", "[rR][cC][lL][oO][nN][eE].[cC][oO][nN][fF]",
 		...rcloneArgs
 	];
 }
@@ -651,8 +785,8 @@ function joinRemotePath(remoteRoot, relativePath) {
 
 async function getDefaultRcloneArgs(configFile) {
 	const config = vscode.workspace.getConfiguration("pushPull");
-	const transfers = Math.max(1, Number(config.get("transfers", 4)) || 4);
-	const checkers = Math.max(1, Number(config.get("checkers", 8)) || 8);
+	const transfers = Math.max(1, Number(config.get("transfers", 2)) || 2);
+	const checkers = Math.max(1, Number(config.get("checkers", 4)) || 4);
 	const args = [
 		"--progress",
 		"--stats",
@@ -725,21 +859,36 @@ function resolveRcloneRemoteType(sections, remoteName) {
 		const type = section?.type?.toLowerCase();
 
 		if (!section || !type) {
-			return "";
+			throw new Error(`Missing remote configuration: [${currentName}].`);
+		}
+
+		if (type === "local") {
+			throw new Error("Transfer stopped: my-project points to a local folder. Set remote to my-server:path in rclone.conf.");
 		}
 
 		if (type !== "alias") {
 			return type;
 		}
 
-		currentName = getRcloneRemoteName(section.remote);
+		const target = String(section.remote || "").trim();
+		if (!target || /^[A-Za-z]:/.test(target) || !/^:?[^:/\\]+:/.test(target)) {
+			throw new Error("Transfer stopped: my-project points to a local folder. Set remote to my-server:path in rclone.conf.");
+		}
+		if (target.startsWith(":")) {
+			const backend = target.slice(1).split(/[,:]/)[0].toLowerCase();
+			if (backend === "local") {
+				throw new Error("Transfer stopped: my-project points to a local folder. Set remote to my-server:path in rclone.conf.");
+			}
+			return backend;
+		}
+		currentName = getRcloneRemoteName(target);
 	}
 
-	return "";
+	throw new Error("Invalid alias chain for my-project in rclone.conf.");
 }
 
 function getRcloneRemoteName(remote) {
-	return String(remote || "").trim().split(":")[0];
+	return String(remote || "").trim().split(/[,:]/)[0];
 }
 
 async function runRcloneCommand({ rclonePath, args, cwd, progress, action, itemLabel }) {
@@ -770,7 +919,9 @@ async function runRcloneCommand({ rclonePath, args, cwd, progress, action, itemL
 			lastProgressAt = Date.now();
 			const compactLine = keepLatestEta(cleanLine).replace(/\s+/g, " ").slice(0, 140);
 			progress.report({ message: compactLine });
-			setStatusBar(action === "upload"
+			setStatusBar(action === "sync"
+				? `$(sync) Syncing: ${itemLabel}`
+				: action === "upload"
 				? `$(arrow-up) Uploading: ${itemLabel}`
 				: `$(arrow-down) Downloading: ${itemLabel}`);
 		};

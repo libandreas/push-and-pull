@@ -1,8 +1,6 @@
-# Keep the repository private by default.
-*
-
 # Public repository files.
-!.gitignore
-!LICENSE
-!README.md
+.vscode
+.idea
+.rclone.conf
 .skia/
+.well-known/
