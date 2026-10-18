@@ -43,7 +43,7 @@ public final class PushPullSettings implements PersistentStateComponent<PushPull
     }
 
     public static final class SettingsState {
-        public int transfers = 4;
-        public int checkers = 8;
+        public int transfers = 2;
+        public int checkers = 4;
     }
 }

@@ -1,0 +1,51 @@
+[
+  {
+    "label": "Attach to Chrome",
+    "adapter": "JavaScript",
+    "request": "attach",
+    "port": 9222,
+    "webRoot": "$ZED_WORKTREE_ROOT",
+    "urlFilter": "http://localhost:8000/*",
+    "type": "chrome",
+    "skipFiles": [
+      "**/content-all.js",
+      "**/all-frames.js",
+      "**/jquery*.js",
+      "**/jquery*.min.js",
+      "**/content.js",
+      "**/content-script.js"
+    ]
+  },
+  {
+    "label": "Attach to Chrome Extension",
+    "adapter": "JavaScript",
+    "request": "attach",
+    "port": 9222,
+    "webRoot": "$ZED_WORKTREE_ROOT",
+    "urlFilter": "chrome-extension://*",
+    "type": "chrome",
+    "skipFiles": [
+      "<node_internals>/**",
+      "**/content-all.js",
+      "**/all-frames.js",
+      "**/jquery*.js",
+      "**/jquery*.min.js"
+    ]
+  },
+  {
+    "label": "PHP: Listen to Xdebug",
+    "adapter": "Xdebug",
+    "request": "launch",
+    "initialize_args": {
+      "port": 9003
+    }
+  },
+  {
+    "label": "Attach on Node",
+    "adapter": "JavaScript",
+    "request": "attach",
+    "port": 9229,
+    "type": "node",
+    "skipFiles": ["<node_internals>/**"]
+  }
+]

@@ -1,6 +1,7 @@
 package com.deploymenthost.jetbrains;
 
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.openapi.application.PathManager;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -16,6 +17,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.regex.Pattern;
@@ -31,6 +33,10 @@ final class RcloneTransferService {
     );
 
     void prepareConfig(Path rclonePath, TransferItem item) throws IOException, InterruptedException {
+        resolveRcloneRemoteType(
+            parseRcloneConfig(Files.readString(item.configPath(), StandardCharsets.UTF_8)),
+            "my-project"
+        );
         makeRclonePassword(rclonePath, item.rootPath(), item.configPath());
     }
 
@@ -98,6 +104,34 @@ final class RcloneTransferService {
         int checkers,
         Consumer<String> reportProgress
     ) throws IOException, InterruptedException {
+        if (direction == TransferAction.Direction.SYNC) {
+            String folderKey = UUID.nameUUIDFromBytes(
+                item.rootPath().resolve(item.relativePath()).normalize().toString().getBytes(StandardCharsets.UTF_8)
+            ).toString();
+            Path workDirectory = Path.of(PathManager.getSystemPath(), "push-and-pull", "bisync", folderKey);
+            boolean firstRun = !Files.exists(workDirectory);
+            Files.createDirectories(workDirectory);
+            List<String> arguments = new ArrayList<>(List.of(
+                "--config", item.configPath().toString(),
+                "bisync", item.rootPath().resolve(item.relativePath()).toString(),
+                joinRemotePath(REMOTE_ROOT, item.relativePath()),
+                "--workdir", workDirectory.toString(),
+                "--conflict-resolve", "newer",
+                "--exclude", "[rR][cC][lL][oO][nN][eE].[cC][oO][nN][fF]",
+                "--transfers", String.valueOf(Math.max(1, transfers)),
+                "--checkers", String.valueOf(Math.max(1, checkers)),
+                "--stats", "1s", "--stats-one-line", "--local-no-preallocate"
+            ));
+            if (firstRun) {
+                arguments.addAll(List.of("--resync-mode", "newer"));
+            }
+            runRcloneCommand(rclonePath, item.rootPath(), arguments, direction, reportProgress);
+            return;
+        }
+
+        if (item.rootPath().resolve(item.relativePath()).getFileName().toString().equalsIgnoreCase("rclone.conf")) {
+            throw new IllegalStateException("rclone.conf is private and cannot be transferred.");
+        }
         List<String> defaultArguments = defaultArguments(item.configPath(), transfers, checkers);
         List<String> arguments = direction == TransferAction.Direction.UPLOAD
             ? uploadArguments(item, defaultArguments)
@@ -145,6 +179,7 @@ final class RcloneTransferService {
             "--stats",
             "1s",
             "--stats-one-line",
+            "--exclude", "[rR][cC][lL][oO][nN][eE].[cC][oO][nN][fF]",
             "--ignore-size"
         ));
 
@@ -275,19 +310,34 @@ final class RcloneTransferService {
         while (!currentName.isBlank() && visited.add(currentName)) {
             Map<String, String> section = sections.get(currentName);
             if (section == null) {
-                return "";
+                throw new IllegalStateException("Missing remote configuration: [" + currentName + "].");
             }
 
             String type = section.getOrDefault("type", "").toLowerCase(Locale.ROOT);
             if (type.isBlank()) {
-                return "";
+                throw new IllegalStateException("Missing remote type: [" + currentName + "].");
+            }
+            if ("local".equals(type)) {
+                throw new IllegalStateException("Transfer stopped: my-project points to a local folder. Set remote to my-server:path in rclone.conf.");
             }
             if (!"alias".equals(type)) {
                 return type;
             }
-            currentName = rcloneRemoteName(section.getOrDefault("remote", ""));
+            String target = section.getOrDefault("remote", "").trim();
+            if (target.isBlank() || Pattern.compile("^[A-Za-z]:").matcher(target).find()
+                || !Pattern.compile("^:?[^:/\\\\]+:").matcher(target).find()) {
+                throw new IllegalStateException("Transfer stopped: my-project points to a local folder. Set remote to my-server:path in rclone.conf.");
+            }
+            if (target.startsWith(":")) {
+                String backend = target.substring(1).split("[,:]", 2)[0].toLowerCase(Locale.ROOT);
+                if ("local".equals(backend)) {
+                    throw new IllegalStateException("Transfer stopped: my-project points to a local folder. Set remote to my-server:path in rclone.conf.");
+                }
+                return backend;
+            }
+            currentName = rcloneRemoteName(target);
         }
-        return "";
+        throw new IllegalStateException("Invalid alias chain for my-project in rclone.conf.");
     }
 
     private void runRcloneCommand(
@@ -424,7 +474,11 @@ final class RcloneTransferService {
             return;
         }
 
-        String prefix = direction == TransferAction.Direction.UPLOAD ? "Uploading: " : "Downloading: ";
+        String prefix = switch (direction) {
+            case UPLOAD -> "Uploading: ";
+            case DOWNLOAD -> "Downloading: ";
+            case SYNC -> "Syncing: ";
+        };
         reportProgress.accept(prefix + cleanLine);
     }
 
@@ -477,7 +531,7 @@ final class RcloneTransferService {
     }
 
     private String rcloneRemoteName(String remote) {
-        return remote == null ? "" : remote.trim().split(":", 2)[0];
+        return remote == null ? "" : remote.trim().split("[,:]", 2)[0];
     }
 
     private List<Section> configSections(List<String> lines) {

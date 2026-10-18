@@ -1,12 +1,12 @@
 <idea-plugin>
     <id>com.pushpull.deploy</id>
-    <name>Push &amp; Pull</name>
     <vendor email="support@example.com" url="https://example.com">Push &amp; Pull</vendor>
 
     <depends>com.intellij.modules.platform</depends>
 
     <extensions defaultExtensionNs="com.intellij">
         <notificationGroup id="Push &amp; Pull" displayType="BALLOON" isLogByDefault="true"/>
+        <notificationGroup id="Push &amp; Pull Errors" displayType="STICKY_BALLOON" isLogByDefault="true"/>
         <projectConfigurable
             id="push.pull.settings"
             parentId="tools"
@@ -22,6 +22,14 @@
             icon="/icons/up.svg">
             <add-to-group group-id="ToolsMenu" anchor="last"/>
         </group>
+
+        <action
+            id="Deploy.CreateConfiguration"
+            class="com.deploymenthost.jetbrains.CreateConfigurationAction"
+            text="Push &amp; Pull: Create Configuration"
+            description="Create or open the project's rclone.conf">
+            <add-to-group group-id="Deploy.ToolsMenu" anchor="first"/>
+        </action>
 
         <action
             id="Deploy.CompareFile"
@@ -84,6 +92,14 @@
             icon="/icons/down.svg">
             <add-to-group group-id="Deploy.ToolsMenu" anchor="last"/>
             <add-to-group group-id="ProjectViewPopupMenu" anchor="after" relative-to-action="Deploy.PushFolder"/>
+        </action>
+        <action
+            id="Deploy.SyncFolder"
+            class="com.deploymenthost.jetbrains.SyncFolderAction"
+            text="Sync Folder (Bsyncs)"
+            description="Sync the selected subfolder in both directions">
+            <add-to-group group-id="Deploy.ToolsMenu" anchor="last"/>
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="after" relative-to-action="Deploy.PullFolder"/>
         </action>
     </actions>
 </idea-plugin>
