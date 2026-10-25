@@ -1,6 +1,6 @@
 # Public repository files.
 .vscode
 .idea
-.rclone.conf
+rclone.conf
 .skia/
 .well-known/
