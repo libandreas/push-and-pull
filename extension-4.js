@@ -1,83 +1,23 @@
 const path = require("path");
-const os = require("os");
-const fs = require("fs");
 const fsPromises = require("fs/promises");
 const http = require("http");
 const https = require("https");
 const { spawn, execFile } = require("child_process");
 const { promisify } = require("util");
-const AdmZip = require("adm-zip");
 const vscode = require("vscode");
 const { createHash } = require("crypto");
 
 const execFileAsync = promisify(execFile);
 
-const RCLONE_DOWNLOAD_HOST = "downloads.rclone.org";
-const RCLONE_CURRENT_VERSION_PATH = "/version.txt";
-const RCLONE_DOWNLOAD_TIMEOUT_MS = 30000;
 const RCLONE_PROGRESS_THROTTLE_MS = 250;
-const RCLONE_UPDATE_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const RCLONE_FINISH_MESSAGE_MS = 1000;
 const READ_ONLY_CONFIG_PATH = path.join(".skia", "read-only-url.txt");
 const READ_ONLY_REQUEST_TIMEOUT_MS = 30000;
 const READ_ONLY_MAX_REDIRECTS = 10;
 const BROWSER_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36";
-const PLATFORM_ARCHIVE_NAMES = {
-	win32: {
-		amd64: "windows-amd64",
-		"386": "windows-386",
-		arm64: "windows-arm64"
-	},
-	linux: {
-		amd64: "linux-amd64",
-		"386": "linux-386",
-		arm64: "linux-arm64",
-		arm: "linux-arm",
-		"arm-v6": "linux-arm-v6",
-		"arm-v7": "linux-arm-v7",
-		loong64: "linux-loong64",
-		ppc64: "linux-ppc64",
-		ppc64le: "linux-ppc64le",
-		riscv64: "linux-riscv64",
-		s390x: "linux-s390x",
-		mips: "linux-mips",
-		mipsle: "linux-mipsle",
-		mips64: "linux-mips64",
-		mips64le: "linux-mips64le"
-	},
-	darwin: {
-		amd64: "osx-amd64",
-		arm64: "osx-arm64"
-	},
-	freebsd: {
-		amd64: "freebsd-amd64",
-		"386": "freebsd-386",
-		arm: "freebsd-arm",
-		"arm-v6": "freebsd-arm-v6",
-		"arm-v7": "freebsd-arm-v7"
-	},
-	openbsd: {
-		amd64: "openbsd-amd64",
-		"386": "openbsd-386"
-	},
-	netbsd: {
-		amd64: "netbsd-amd64",
-		"386": "netbsd-386",
-		arm: "netbsd-arm",
-		"arm-v6": "netbsd-arm-v6",
-		"arm-v7": "netbsd-arm-v7"
-	},
-	sunos: {
-		amd64: "solaris-amd64"
-	},
-	aix: {
-		ppc64: "aix-ppc64"
-	}
-};
 
 let extensionContext;
 let statusBarItem;
-let rcloneReadyPromise;
 let transferRunning = false;
 
 function activate(context) {
@@ -94,7 +34,7 @@ function activate(context) {
 					folderUri = folders[0].uri;
 				} else if (folders?.length > 1) {
 					const folder = await vscode.window.showWorkspaceFolderPick({
-						placeHolder: "Choose the project for Push & Pull"
+						placeHolder: "Choose the project for RZilla"
 					});
 					folderUri = folder?.uri;
 				} else {
@@ -125,6 +65,7 @@ port = 21
 # Explicit FTPS. Set to false only if your server requires plain FTP.
 explicit_tls = true
 pass-visible = my-password
+# Optional. After the first successful run creates pass, remove pass-visible for security and keep pass.
 
 [my-project]
 type = alias
@@ -183,7 +124,7 @@ remote = my-server:/httpdocs
 					title: "Bsyncs",
 					cancellable: false
 				}, async (progress) => {
-					const rclonePath = await ensureLatestRclone(progress);
+					const rclonePath = await ensureRcloneAvailable();
 					for (const item of [...new Map(items.map((item) => [item.configFile, item])).values()]) {
 						await makeRclonePasswd(rclonePath, item.rootPath, item.configFile);
 					}
@@ -252,7 +193,7 @@ async function compareFile(uri) {
 		}, async (progress) => {
 			progress.report({ message: "Downloading online version..." });
 
-			const rclonePath = await ensureLatestRclone(progress);
+			const rclonePath = await ensureRcloneAvailable();
 			await makeRclonePasswd(rclonePath, transferRoot.rootPath, transferRoot.configFile);
 
 			const storageUri = extensionContext.storageUri || extensionContext.globalStorageUri;
@@ -380,7 +321,7 @@ async function runRcloneMany(action, uri, selectedUris, expectedType = vscode.Fi
 				setStatusBar(action === "upload" ? "$(arrow-up) Uploading..." : "$(arrow-down) Downloading...");
 				progress.report({ message: "Checking rclone..." });
 
-				const rclonePath = await ensureLatestRclone(progress);
+				const rclonePath = await ensureRcloneAvailable();
 				const transferRoots = [...new Map(items.map((item) => [item.configFile, item])).values()];
 
 				for (const item of transferRoots) {
@@ -1019,259 +960,16 @@ async function runRcloneCommand({ rclonePath, args, cwd, progress, action, itemL
 	});
 }
 
-async function ensureLatestRclone(progress) {
-	if (!rcloneReadyPromise) {
-		rcloneReadyPromise = ensureLatestRcloneInternal(progress).finally(() => {
-			rcloneReadyPromise = undefined;
-		});
-	}
-
-	return rcloneReadyPromise;
-}
-
-async function ensureLatestRcloneInternal(progress) {
-	const platform = getSupportedPlatform();
-	const storageDir = getRcloneStorageDir();
-	const versionFile = path.join(storageDir, "version.txt");
-	const checkedAtFile = path.join(storageDir, "checked-at.txt");
-	const executablePath = path.join(storageDir, platform.binaryName);
-
-	await fsPromises.mkdir(storageDir, { recursive: true });
-	const installedVersion = await readTextIfExists(versionFile);
-	const hasCachedBinary = await fileExists(executablePath);
-	const shouldCheckForUpdates = await shouldCheckForRcloneUpdates(checkedAtFile);
-
-	if (hasCachedBinary && !shouldCheckForUpdates) {
-		progress.report({ message: "Using cached rclone..." });
-		return executablePath;
-	}
-
+async function ensureRcloneAvailable() {
 	try {
-		progress.report({ message: "Checking latest rclone version..." });
-		const latestVersion = await downloadText(`https://${RCLONE_DOWNLOAD_HOST}${RCLONE_CURRENT_VERSION_PATH}`);
-		await writeUpdateCheckTime(checkedAtFile);
-
-		if (installedVersion === latestVersion && hasCachedBinary) {
-			return executablePath;
-		}
-
-		const zipName = `rclone-current-${platform.archiveName}.zip`;
-		const zipUrl = `https://${RCLONE_DOWNLOAD_HOST}/${zipName}`;
-		const zipPath = path.join(storageDir, zipName);
-
-		progress.report({ message: `Downloading ${latestVersion} for ${platform.label}...` });
-		await downloadFile(zipUrl, zipPath, progress, `Downloading ${latestVersion}`);
-
-		progress.report({ message: "Extracting rclone..." });
-		await extractRcloneBinary(zipPath, executablePath, platform.binaryName);
-		await fsPromises.writeFile(versionFile, latestVersion, "utf8");
-
-		return executablePath;
+		await execFileAsync("rclone", ["version"], { windowsHide: true });
 	} catch (error) {
-		if (hasCachedBinary) {
-			progress.report({ message: "Using cached rclone..." });
-			return executablePath;
+		if (error.code === "ENOENT") {
+			throw new Error("rclone not found. Please install rclone first on your system.");
 		}
-
 		throw error;
 	}
-}
-
-function getSupportedPlatform() {
-	const platform = normalizeNodePlatform(process.platform);
-	const arch = normalizeNodeArchitecture(process.arch, os.machine());
-	const archiveName = PLATFORM_ARCHIVE_NAMES[platform]?.[arch];
-
-	if (!archiveName) {
-		throw new Error(`No official rclone download mapping is configured for platform ${platform} ${arch}.`);
-	}
-
-	return {
-		archiveName,
-		binaryName: platform === "win32" ? "rclone.exe" : "rclone",
-		label: `${platform} ${arch}`
-	};
-}
-
-function normalizeNodePlatform(platform) {
-	switch (platform) {
-		case "win32":
-		case "linux":
-		case "freebsd":
-		case "openbsd":
-		case "netbsd":
-		case "aix":
-			return platform;
-		case "darwin":
-			return "darwin";
-		case "sunos":
-			return "sunos";
-		default:
-			return platform;
-	}
-}
-
-function normalizeNodeArchitecture(arch, machine) {
-	const normalizedMachine = String(machine || "").toLowerCase();
-
-	switch (arch) {
-		case "x64":
-			return "amd64";
-		case "ia32":
-			return "386";
-		case "arm64":
-			return "arm64";
-		case "arm":
-			if (normalizedMachine.includes("armv7")) {
-				return "arm-v7";
-			}
-
-			if (normalizedMachine.includes("armv6")) {
-				return "arm-v6";
-			}
-
-			return "arm";
-		case "ppc64":
-			return normalizedMachine.includes("ppc64le") ? "ppc64le" : "ppc64";
-		case "s390x":
-		case "riscv64":
-		case "loong64":
-		case "mips":
-		case "mips64":
-			return arch;
-		case "mipsel":
-			return "mipsle";
-		case "mips64el":
-			return "mips64le";
-		default:
-			return arch;
-	}
-}
-
-function getRcloneStorageDir() {
-	const basePath = extensionContext.globalStorageUri.fsPath;
-	return path.join(basePath, "rclone");
-}
-
-async function extractRcloneBinary(zipPath, executablePath, binaryName) {
-	const zip = new AdmZip(zipPath);
-	const entry = zip.getEntries().find((item) => path.basename(item.entryName) === binaryName);
-
-	if (!entry) {
-		throw new Error("Could not find the rclone binary inside the downloaded archive.");
-	}
-
-	await fsPromises.mkdir(path.dirname(executablePath), { recursive: true });
-	await fsPromises.writeFile(executablePath, entry.getData());
-
-	if (process.platform !== "win32") {
-		await fsPromises.chmod(executablePath, 0o755);
-	}
-
-	await fsPromises.unlink(zipPath).catch(() => undefined);
-}
-
-async function downloadText(url) {
-	const response = await request(url);
-	return response.body.toString("utf8").trim();
-}
-
-async function downloadFile(url, targetPath, progress, title) {
-	await new Promise((resolve, reject) => {
-		const requestInstance = https.get(url, {
-			timeout: RCLONE_DOWNLOAD_TIMEOUT_MS,
-			headers: {
-				"User-Agent": "push-and-pull-vscode-extension"
-			}
-		}, (response) => {
-			if (response.statusCode && response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
-				response.resume();
-				downloadFile(response.headers.location, targetPath, progress, title).then(resolve, reject);
-				return;
-			}
-
-			if (response.statusCode !== 200) {
-				response.resume();
-				reject(new Error(`Download failed with status ${response.statusCode}.`));
-				return;
-			}
-
-			const totalBytes = Number(response.headers["content-length"] || 0);
-			let downloadedBytes = 0;
-			const fileStream = fs.createWriteStream(targetPath);
-
-			response.on("data", (chunk) => {
-				downloadedBytes += chunk.length;
-
-				if (totalBytes > 0) {
-					const percent = Math.min(100, Math.round((downloadedBytes / totalBytes) * 100));
-					progress.report({
-						increment: 0,
-						message: `${title}... ${percent}%`
-					});
-					return;
-				}
-
-				progress.report({
-					message: `${title}... ${formatBytes(downloadedBytes)}`
-				});
-			});
-
-			response.on("error", reject);
-			fileStream.on("error", reject);
-			fileStream.on("finish", resolve);
-			response.pipe(fileStream);
-		});
-
-		requestInstance.on("timeout", () => {
-			requestInstance.destroy(new Error("Request timed out."));
-		});
-		requestInstance.on("error", reject);
-	});
-}
-
-async function request(url) {
-	return new Promise((resolve, reject) => {
-		const requestInstance = https.get(url, {
-			timeout: RCLONE_DOWNLOAD_TIMEOUT_MS,
-			headers: {
-				"User-Agent": "push-and-pull-vscode-extension"
-			}
-		}, (response) => {
-			if (response.statusCode && response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
-				response.resume();
-				resolve(request(response.headers.location));
-				return;
-			}
-
-			if (response.statusCode !== 200) {
-				response.resume();
-				reject(new Error(`Download failed with status ${response.statusCode}.`));
-				return;
-			}
-
-			const chunks = [];
-
-			response.on("data", (chunk) => {
-				chunks.push(chunk);
-			});
-
-			response.on("end", () => {
-				const body = Buffer.concat(chunks);
-				resolve({
-					headers: response.headers,
-					body
-				});
-			});
-
-			response.on("error", reject);
-		});
-
-		requestInstance.on("timeout", () => {
-			requestInstance.destroy(new Error("Request timed out."));
-		});
-		requestInstance.on("error", reject);
-	});
+	return "rclone";
 }
 
 async function requestReadOnlyFile(url, progress, itemLabel, redirectCount = 0) {
@@ -1339,18 +1037,6 @@ async function requestReadOnlyFile(url, progress, itemLabel, redirectCount = 0) 
 	});
 }
 
-async function readTextIfExists(filePath) {
-	try {
-		return (await fsPromises.readFile(filePath, "utf8")).trim();
-	} catch (error) {
-		if (error.code === "ENOENT") {
-			return "";
-		}
-
-		throw error;
-	}
-}
-
 async function fileExists(filePath) {
 	try {
 		await fsPromises.access(filePath);
@@ -1366,20 +1052,6 @@ async function fileExists(filePath) {
 
 function delay(ms) {
 	return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function shouldCheckForRcloneUpdates(checkedAtFile) {
-	const lastCheckedAt = Number(await readTextIfExists(checkedAtFile));
-
-	if (!lastCheckedAt) {
-		return true;
-	}
-
-	return Date.now() - lastCheckedAt >= RCLONE_UPDATE_INTERVAL_MS;
-}
-
-async function writeUpdateCheckTime(checkedAtFile) {
-	await fsPromises.writeFile(checkedAtFile, String(Date.now()), "utf8");
 }
 
 function getLastMeaningfulLine(text) {

@@ -4,7 +4,7 @@
     <conf name="default" visibility="public" />
   </configurations>
   <publications>
-    <artifact name="Program Files/JetBrains/WebStorm 2026.1.1" ext="directory" conf="default" />
+    <artifact name="Program Files/JetBrains/WebStorm 2026.2.3" ext="directory" conf="default" />
   </publications>
   <dependencies />
 </ivy-module>

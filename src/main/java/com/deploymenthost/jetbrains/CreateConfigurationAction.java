@@ -44,7 +44,7 @@ public class CreateConfigurationAction extends DumbAwareAction {
 
             projectFolder.refresh(false, false);
             VirtualFile configFile = WriteCommandAction.writeCommandAction(project)
-                .withName("Create Push & Pull Configuration")
+                .withName("Create RZilla Configuration")
                 .compute(() -> {
                     VirtualFile existingFile = projectFolder.findChild("rclone.conf");
                     if (existingFile != null) {
@@ -81,7 +81,7 @@ public class CreateConfigurationAction extends DumbAwareAction {
             NotificationGroupManager.getInstance()
                 .getNotificationGroup("Push & Pull")
                 .createNotification(
-                    "Push & Pull",
+                    "RZilla",
                     StringUtil.escapeXmlEntities("Configuration failed: " + error.getMessage()),
                     NotificationType.ERROR
                 )

@@ -1,6 +1,6 @@
 <idea-plugin>
     <id>com.pushpull.deploy</id>
-    <vendor email="support@example.com" url="https://example.com">Push &amp; Pull</vendor>
+    <vendor email="support@example.com" url="https://example.com">RZilla</vendor>
 
     <depends>com.intellij.modules.platform</depends>
 
@@ -10,14 +10,14 @@
         <projectConfigurable
             id="push.pull.settings"
             parentId="tools"
-            displayName="Push &amp; Pull"
+            displayName="RZilla"
             instance="com.deploymenthost.jetbrains.PushPullConfigurable"/>
     </extensions>
 
     <actions>
         <group
             id="Deploy.ToolsMenu"
-            text="Push &amp; Pull"
+            text="RZilla"
             popup="true"
             icon="/icons/up.svg">
             <add-to-group group-id="ToolsMenu" anchor="last"/>
@@ -26,7 +26,7 @@
         <action
             id="Deploy.CreateConfiguration"
             class="com.deploymenthost.jetbrains.CreateConfigurationAction"
-            text="Push &amp; Pull: Create Configuration"
+            text="RZilla: Create Configuration"
             description="Create or open the project's rclone.conf">
             <add-to-group group-id="Deploy.ToolsMenu" anchor="first"/>
         </action>

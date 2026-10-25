@@ -1,7 +1,7 @@
 {
 	"name": "push-and-pull",
-	"displayName": "Push & Pull: FTP, SFTP & WebDAV",
-	"description": "FTP, SFTP and WebDAV client for VS Code. Upload and download files or folders, compare local and remote files, and access cloud storage through rclone.",
+	"displayName": "RZilla: FTP, SFTP & WebDAV",
+	"description": "FTP, SFTP and WebDAV client for VS Code. Upload, download, sync folders and compare local and remote files. Powered by rclone.",
 	"keywords": [
 		"ftp",
 		"sftp",
@@ -22,16 +22,13 @@
 		"google-drive",
 		"onedrive"
 	],
-	"version": "26.10.4",
+	"version": "26.10.24",
 	"publisher": "pa-andreas",
 	"license": "GPL-3.0-or-later",
 	"icon": "favicon-4.png",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/libandreas/push-and-pull.git"
-	},
-	"dependencies": {
-		"adm-zip": "^0.5.16"
 	},
 	"scripts": {
 		"build:vscode": "node build-vscode.mjs",
@@ -55,26 +52,26 @@
 	"main": "./extension-4.js",
 	"contributes": {
 		"configuration": {
-			"title": "Push & Pull",
+			"title": "RZilla",
 			"properties": {
 				"pushPull.transfers": {
 					"type": "number",
 					"default": 2,
 					"minimum": 1,
-					"description": "Push & Pull rclone arg: --transfers. Number of file transfers to run in parallel."
+					"description": "RZilla rclone arg: --transfers. Number of file transfers to run in parallel."
 				},
 				"pushPull.checkers": {
 					"type": "number",
 					"default": 4,
 					"minimum": 1,
-					"description": "Push & Pull rclone arg: --checkers. Number of checkers to run in parallel while scanning and comparing files."
+					"description": "RZilla rclone arg: --checkers. Number of checkers to run in parallel while scanning and comparing files."
 				}
 			}
 		},
 		"commands": [
 			{
 				"command": "pushR.createConfiguration",
-				"title": "Push & Pull: Create Configuration"
+				"title": "RZilla: Create Configuration"
 			},
 			{
 				"command": "pushR.compareFile",

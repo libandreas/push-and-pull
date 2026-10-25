@@ -29,7 +29,7 @@ import java.nio.file.Path;
 import java.util.Locale;
 
 public class CompareFileAction extends AnAction {
-    private static final String TITLE = "Push & Pull";
+    private static final String TITLE = "RZilla";
     private static final String NOTIFICATION_GROUP = "Push & Pull";
 
     private final RcloneBinaryManager binaryManager = new RcloneBinaryManager();
@@ -116,9 +116,7 @@ public class CompareFileAction extends AnAction {
                     indicator.setIndeterminate(true);
                     reportProgress(indicator, liveNotification, "Downloading online version...");
 
-                    Path rclonePath = binaryManager.ensureLatestRclone(
-                        message -> reportProgress(indicator, liveNotification, message)
-                    );
+                    Path rclonePath = binaryManager.ensureRcloneAvailable();
                     transferService.prepareConfig(rclonePath, item);
                     transferService.downloadForComparison(
                         rclonePath,
@@ -261,7 +259,7 @@ public class CompareFileAction extends AnAction {
 
     private String errorMessage(Exception error) {
         return error.getMessage() == null || error.getMessage().isBlank()
-            ? "Push & Pull failed."
+            ? "RZilla failed."
             : error.getMessage();
     }
 }

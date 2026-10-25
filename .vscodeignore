@@ -1,7 +1,13 @@
 **/test/**
 **/tests/**
 **/test-files/**
+**/tools/**
 **/*.zip
+**/*.vsix
+**/.gradle/**
+**/.gradle-runtime/**
+**/.intellijPlatform/**
+build/**
 **/*.logs
 **/test-reports/**
 **/reports/**
@@ -9,6 +15,8 @@
 **/.tmp/**
 **/.codex
 **/.codex/**
+**/.skia/**
+**/node_modules/** (Only Chrome Extension)
 **/.codex-remote-attachments/**
 **/.vscode/**
 **/.idea/**

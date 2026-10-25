@@ -13,7 +13,7 @@ plugins {
 }
 
 group = "com.deploymenthost"
-version = "26.10.7"
+version = "26.10.18"
 
 val userProfile = System.getenv("USERPROFILE") ?: System.getProperty("user.home")
 val localProjectBuildRoot = file("$userProfile/ceres-assistant-build - Push & Pull")
@@ -67,8 +67,8 @@ tasks {
     processResources {
         includeEmptyDirs = false
         val projectDirectory = layout.projectDirectory.asFile
-        inputs.file(layout.projectDirectory.file(".jbignore"))
-        val ignoreRules = providers.fileContents(layout.projectDirectory.file(".jbignore")).asText.get()
+        inputs.file(layout.projectDirectory.file(".vscodeignore"))
+        val ignoreRules = providers.fileContents(layout.projectDirectory.file(".vscodeignore")).asText.get()
             .lineSequence()
             .map { it.trim() }
             .filter { it.isNotEmpty() && !it.startsWith("#") }

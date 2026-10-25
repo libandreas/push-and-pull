@@ -26,7 +26,7 @@ public final class PushPullConfigurable implements Configurable {
 
     @Override
     public @Nls String getDisplayName() {
-        return "Push & Pull";
+        return "RZilla";
     }
 
     @Override
