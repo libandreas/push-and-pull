@@ -52,11 +52,13 @@ sudo -v ; curl https://rclone.org/install.sh | sudo bash
 
 You can also install a binary or package for your system from the [official downloads](https://rclone.org/downloads/).
 
-After installation, restart your IDE so it receives any `PATH` changes. Run `rclone version` in the environment where the extension runs to confirm availability. For cloud or remote IDEs, install rclone in that remote environment.
+After installing rclone, fully close and restart VS Code or your JetBrains IDE so it receives the updated `PATH` and can detect rclone. Run `rclone version` in the environment where the extension runs to confirm availability. For cloud or remote IDEs, install rclone in that remote environment.
 
 If rclone is unavailable, transfers and password generation show: `rclone not found. Please install rclone first on your system.`
 
 ## 2. Configure your project
+
+### Official Method: `rclone config`
 
 After installing rclone, open the integrated terminal in VS Code or your JetBrains IDE. **Make sure the terminal's current directory is your project root.** A terminal may start in the project folder, but an existing terminal, a custom setting or a workspace with multiple folders may use another directory. Use `pwd` (PowerShell, macOS or Linux) or `cd` without arguments (Windows Command Prompt) to display the current directory, and change to your project root if needed.
 
@@ -76,6 +78,32 @@ The relative path `./rclone.conf` refers to the terminal's current directory. Th
 Use the same `--config ./rclone.conf` argument whenever you edit these project connections. You can also supply an absolute path if your terminal is in another directory. See the [official rclone configuration guide](https://rclone.org/docs/#configure).
 
 Rclone handles passwords and authentication tokens during setup. The optional RZilla `pass-visible` field described below is not needed when you configure credentials through this wizard.
+
+### Manual File Creation (Unofficial Alternative)
+
+If you do not have an `rclone.conf` file yet, use the official command above to create it, or create it manually in your project root. For an FTP connection, start with:
+
+```ini
+[my-server]
+type = ftp
+host = ftp.example.com
+user = my-username
+pass-visible = my-password
+
+[my-project]
+type = alias
+remote = my-server:/httpdocs
+```
+
+Replace the host, username, password and destination folder with your server details. For other connection types, use `rclone config` to get the appropriate settings.
+
+The optional `pass-visible` field is supported by RZilla in both VS Code and JetBrains. When preparing a transfer, RZilla uses `rclone obscure` to create or update `pass` from this value.
+
+After the first successful run creates `pass`, you can remove `pass-visible` and keep the generated `pass` line. RZilla never removes `pass-visible` automatically. Without it, the existing `pass` is used unchanged. You can also supply an existing rclone `pass` directly.
+
+`pass-visible` contains your password as plain text. Keep `rclone.conf` private.
+
+### Keep Your Configuration Private
 
 Add `rclone.conf` to your `.gitignore` so passwords, access tokens, and server details are not committed to your repository:
 
@@ -100,20 +128,6 @@ Replace `my-server:/httpdocs` with your configured connection and destination fo
 Transfers preserve project-relative paths. They run when you choose Push or Pull and do not delete extra files at the destination.
 
 You can choose any name for the real server connection, but the deploy alias must be named `my-project`.
-
-### Optional Plain-Text Password
-
-The optional RZilla `pass-visible` field lets you enter a password manually. It is unnecessary when credentials are configured with `rclone config`:
-
-```ini
-pass-visible = my-password
-```
-
-When preparing a transfer, RZilla uses `rclone obscure` to create or update `pass` from this value.
-
-**For security, remove `pass-visible` after the first successful run creates `pass`, and keep the generated `pass` line.** This is your choice; RZilla never removes `pass-visible` automatically. Without it, the existing `pass` is used unchanged. You can also supply an existing rclone `pass` directly without adding `pass-visible`.
-
-`pass-visible` contains the real password as plain text. Always keep `rclone.conf` private and exclude it from Git.
 
 ### Other Connection Types
 
