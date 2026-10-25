@@ -25,64 +25,6 @@ function activate(context) {
 	statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
 	context.subscriptions.push(
 		statusBarItem,
-		vscode.commands.registerCommand("pushR.createConfiguration", async () => {
-			try {
-				const folders = vscode.workspace.workspaceFolders;
-				let folderUri;
-
-				if (folders?.length === 1) {
-					folderUri = folders[0].uri;
-				} else if (folders?.length > 1) {
-					const folder = await vscode.window.showWorkspaceFolderPick({
-						placeHolder: "Choose the project for RZilla"
-					});
-					folderUri = folder?.uri;
-				} else {
-					const selected = await vscode.window.showOpenDialog({
-						canSelectFiles: false,
-						canSelectFolders: true,
-						canSelectMany: false,
-						openLabel: "Select Project Folder"
-					});
-					folderUri = selected?.[0];
-				}
-
-				if (!folderUri) return;
-				if (folderUri.scheme !== "file") {
-					vscode.window.showWarningMessage("Choose a local project folder.");
-					return;
-				}
-
-				const configUri = vscode.Uri.joinPath(folderUri, "rclone.conf");
-				const template = `# Replace the server details and destination below.
-# Keep this file private and add rclone.conf to your .gitignore.
-
-[my-server]
-type = ftp
-host = example.com
-user = my-user
-port = 21
-# Explicit FTPS. Set to false only if your server requires plain FTP.
-explicit_tls = true
-pass-visible = my-password
-# Optional. After the first successful run creates pass, remove pass-visible for security and keep pass.
-
-[my-project]
-type = alias
-remote = my-server:/httpdocs
-`;
-				try {
-					await fsPromises.writeFile(configUri.fsPath, template, { encoding: "utf8", flag: "wx" });
-				} catch (error) {
-					if (error.code !== "EEXIST") throw error;
-				}
-
-				const document = await vscode.workspace.openTextDocument(configUri);
-				await vscode.window.showTextDocument(document);
-			} catch (error) {
-				vscode.window.showErrorMessage(`Configuration failed: ${error.message}`);
-			}
-		}),
 		vscode.commands.registerCommand("pushR.compareFile", (uri) => {
 			compareFile(uri);
 		}),

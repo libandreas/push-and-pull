@@ -18,27 +18,64 @@ Previously known as Push & Pull.
 
 RZilla uses rclone for the actual file transfers. You only need to describe your server once in an `rclone.conf` file inside your project.
 
-## Keyboard Shortcuts
+## 1. Install rclone
 
-- **Ctrl+Up**: upload the current file.
-- **Ctrl+Down**: download the current file.
-- On macOS, use **Cmd+Up** and **Cmd+Down**.
+Install rclone yourself using your preferred method. Both the VS Code and JetBrains extensions run `rclone` from your system's `PATH`. You manage its installation and updates.
 
-Folder transfers and multiple selections are available from the file or project context menu.
+The [official installation guide](https://rclone.org/install/) documents these options:
 
-## Project Setup
+### Windows
 
-Run **RZilla: Create Configuration** from the Command Palette in VS Code or **Find Action** in JetBrains IDEs. In JetBrains, it is also available under **Tools → RZilla**. It creates an `rclone.conf` in your project root. Fill in your server details and destination folder. If the file already exists, the command opens it without replacing it.
+```powershell
+winget install Rclone.Rclone
+```
 
-The template includes an FTP connection with explicit TLS (FTPS) and the required `my-project` alias. You can also create `rclone.conf` manually or configure another connection type listed below.
+Alternatively, download the appropriate [official ZIP](https://rclone.org/downloads/), extract `rclone.exe`, and add its folder to your `PATH`.
 
-RZilla uses this file to understand:
+### macOS
 
-- where your server is,
-- which connection type to use,
-- which username and port to use,
-- where the project should be uploaded,
-- and how the connection should be authenticated.
+With Homebrew installed:
+
+```sh
+brew install rclone
+```
+
+For manual installation, follow the [official macOS instructions](https://rclone.org/install/#macos-installation) and place the executable in your `PATH`.
+
+### Linux
+
+Run the official installation script:
+
+```sh
+sudo -v ; curl https://rclone.org/install.sh | sudo bash
+```
+
+You can also install a binary or package for your system from the [official downloads](https://rclone.org/downloads/).
+
+After installation, restart your IDE so it receives any `PATH` changes. Run `rclone version` in the environment where the extension runs to confirm availability. For cloud or remote IDEs, install rclone in that remote environment.
+
+If rclone is unavailable, transfers and password generation show: `rclone not found. Please install rclone first on your system.`
+
+## 2. Configure your project
+
+After installing rclone, open the integrated terminal in VS Code or your JetBrains IDE. **Make sure the terminal's current directory is your project root.** A terminal may start in the project folder, but an existing terminal, a custom setting or a workspace with multiple folders may use another directory. Use `pwd` (PowerShell, macOS or Linux) or `cd` without arguments (Windows Command Prompt) to display the current directory, and change to your project root if needed.
+
+Run:
+
+```sh
+rclone config --config ./rclone.conf
+```
+
+The relative path `./rclone.conf` refers to the terminal's current directory. The command opens rclone's interactive configuration menu and saves your choices in that file. If it already exists, its connections appear in the menu; you can edit them or quit without changes.
+
+1. Choose `n` to create a remote and name it `my-server` (or another name you prefer).
+2. Select your storage type, such as FTP, SFTP, WebDAV, Google Drive or S3, and follow the authentication prompts. For services such as Google Drive, follow rclone's browser authorization instructions when prompted.
+3. Create another remote named **`my-project`**, select **`alias`** as its storage type, and set its `remote` destination to your connection and target folder, for example `my-server:/httpdocs` for FTP, `my-server:Deploy` for Google Drive, or `my-server:my-bucket/deploy` for S3.
+4. Save the configuration and quit the menu. RZilla uses `my-project:` as the destination for Push, Pull, Compare and Sync.
+
+Use the same `--config ./rclone.conf` argument whenever you edit these project connections. You can also supply an absolute path if your terminal is in another directory. See the [official rclone configuration guide](https://rclone.org/docs/#configure).
+
+Rclone handles passwords and authentication tokens during setup. The optional RZilla `pass-visible` field described below is not needed when you configure credentials through this wizard.
 
 Add `rclone.conf` to your `.gitignore` so passwords, access tokens, and server details are not committed to your repository:
 
@@ -46,28 +83,7 @@ Add `rclone.conf` to your `.gitignore` so passwords, access tokens, and server d
 rclone.conf
 ```
 
-## Basic `rclone.conf` Example
-
-The following example creates an FTP connection with explicit TLS (FTPS) named `my-server` and the required `my-project` destination:
-
-```ini
-[my-server]
-type = ftp
-host = example.com
-user = my-user
-port = 21
-explicit_tls = true
-pass-visible = my-password
-# Optional. After the first successful run creates pass, remove pass-visible for security and keep pass.
-
-[my-project]
-type = alias
-remote = my-server:/httpdocs
-```
-
-Replace the host, username, password and `/httpdocs` destination with your server details. Use `explicit_tls = false` only if your server requires plain FTP.
-
-## The `my-project` Destination
+### The `my-project` Destination
 
 RZilla sends project files to a destination named `my-project:`.
 
@@ -79,82 +95,31 @@ type = alias
 remote = my-server:/httpdocs
 ```
 
-In this example:
-
-- `my-server` is the FTP connection.
-- `/httpdocs` is the website folder on the server.
-- `my-project:` represents that folder inside RZilla.
-
-If you upload this local file:
-
-```text
-images/logo.png
-```
-
-RZilla uploads it to:
-
-```text
-my-project:/images/logo.png
-```
+Replace `my-server:/httpdocs` with your configured connection and destination folder. For example, `images/logo.png` uploads to `/httpdocs/images/logo.png` with this alias.
 
 Transfers preserve project-relative paths. They run when you choose Push or Pull and do not delete extra files at the destination.
 
 You can choose any name for the real server connection, but the deploy alias must be named `my-project`.
 
-## How `pass-visible` Works
+### Optional Plain-Text Password
 
-The optional `pass-visible` option lets you enter the real password in a readable form:
+The optional RZilla `pass-visible` field lets you enter a password manually. It is unnecessary when credentials are configured with `rclone config`:
 
 ```ini
 pass-visible = my-password
 ```
 
-Before every upload, download, or comparison, RZilla finds `pass-visible` and asks rclone to obscure that password. It then adds or updates the `pass` option directly below it:
-
-```ini
-pass-visible = my-password
-pass = obscured-password-created-by-rclone
-```
-
-The generated `pass` value is the format rclone expects for the connection. You do not need to run `rclone obscure` yourself or manually copy the generated value.
-
-If the visible password changes, RZilla generates a new `pass` value on the next upload, download, or comparison.
+When preparing a transfer, RZilla uses `rclone obscure` to create or update `pass` from this value.
 
 **For security, remove `pass-visible` after the first successful run creates `pass`, and keep the generated `pass` line.** This is your choice; RZilla never removes `pass-visible` automatically. Without it, the existing `pass` is used unchanged. You can also supply an existing rclone `pass` directly without adding `pass-visible`.
 
 `pass-visible` contains the real password as plain text. Always keep `rclone.conf` private and exclude it from Git.
 
-## Other Connection Types
+### Other Connection Types
 
-RZilla can use the connection types supported by rclone, including:
+Configure FTP, SFTP, WebDAV, Google Drive, S3, OneDrive or another [rclone storage backend](https://rclone.org/overview/) with the same wizard. Authentication and connection options vary by service; the `my-project` alias still points to your chosen destination.
 
-- FTP and FTPS
-- SFTP over SSH
-- WebDAV
-- S3 and S3-compatible storage
-- SMB
-- Azure Blob Storage
-- Google Cloud Storage
-- Google Drive
-- OneDrive
-- Backblaze B2
-- Swift
-
-The server section changes depending on the connection type, but the `my-project` alias works in the same way.
-
-For example, a WebDAV connection can be used as the real remote while `my-project` continues to point to the correct website folder.
-
-## Uploading and Downloading
-
-### Read-Only Website Downloads
-
-To download and compare files directly from a website, create `.skia/read-only-url.txt` with the website URL:
-
-```text
-https://example.com
-```
-
-This downloads the public content served at each URL for file downloads and comparisons, not server-side source code such as PHP. Uploads still use rclone, and folder downloads are unavailable.
+## 3. Use RZilla
 
 To upload a file or folder:
 
@@ -168,25 +133,29 @@ To download a file or folder:
 2. Choose `Pull (Download)` or `Pull Folder (Download)`.
 3. RZilla downloads the matching path from `my-project:`.
 
-For example, downloading:
+### Keyboard Shortcuts
+
+- **Ctrl+Up**: upload the current file.
+- **Ctrl+Down**: download the current file.
+- On macOS, use **Cmd+Up** and **Cmd+Down**.
+
+Folder transfers and multiple selections are available from the file or project context menu.
+
+### Read-Only Website Downloads
+
+To download and compare files directly from a website, create `.skia/read-only-url.txt` with the website URL:
 
 ```text
-css/style.css
+https://example.com
 ```
 
-reads the remote file from:
-
-```text
-my-project:/css/style.css
-```
-
-and writes it back to the same location in the local project.
+This downloads the public content served at each URL for file downloads and comparisons, not server-side source code such as PHP. Uploads still use rclone, and folder downloads are unavailable.
 
 ## Syncing Subfolders
 
 In VS Code or JetBrains IDEs, right-click a project subfolder and choose **Sync Folder (Bsyncs)** below Push and Pull. In JetBrains, it is also available under **Tools → RZilla**. It runs `rclone bisync` directly for that subfolder and its matching server path. The project root and individual files cannot be synced with this command. Read-only website mode is not supported.
 
-An information notification displays: **Bsyncs can delete local files deleted on the server, and server files deleted locally. Use with caution.** It uses VS Code's `showInformationMessage` or the existing RZilla information notification in JetBrains. The transfer then uses the same progress display as Push and Pull. There is no confirmation button, preview or automatic backup. Bsyncs starts when selected. Closing a notification hides it and does not cancel the transfer.
+**Sync propagates deletions in both directions.** It starts when selected, without a confirmation step, preview or automatic backup. Closing its notification does not cancel the transfer.
 
 On the first run, `--resync-mode newer` initializes the history and combines files from both sides. Later runs propagate changes and deletions based on that history. If both copies changed, `--conflict-resolve newer` prefers the newer modification time. This is change tracking: a change on just one side can propagate even if its timestamp became older. Unresolved conflicts keep both versions using rclone's numbered conflict names.
 
@@ -226,45 +195,6 @@ Available settings:
 
 The default values are suitable for most servers. Higher values may make transfers faster on powerful servers, while lower values may work better on limited shared hosting.
 
-## rclone Installation
-
-Install rclone yourself using your preferred method. Both the VS Code and JetBrains extensions run `rclone` from your system's `PATH`. You manage its installation and updates.
-
-The [official installation guide](https://rclone.org/install/) documents these options:
-
-### Windows
-
-```powershell
-winget install Rclone.Rclone
-```
-
-Alternatively, download the appropriate [official ZIP](https://rclone.org/downloads/), extract `rclone.exe`, and add its folder to your `PATH`.
-
-### macOS
-
-With Homebrew installed:
-
-```sh
-brew install rclone
-```
-
-For manual installation, follow the [official macOS instructions](https://rclone.org/install/#macos-installation) and place the executable in your `PATH`.
-
-### Linux
-
-Run the official installation script:
-
-```sh
-sudo -v ; curl https://rclone.org/install.sh | sudo bash
-```
-
-You can also install a binary or package for your system from the [official downloads](https://rclone.org/downloads/).
-
-After installation, restart your IDE so it receives any `PATH` changes. Run `rclone version` in the environment where the extension runs to confirm availability. For cloud or remote IDEs, install rclone in that remote environment.
-
-If rclone is unavailable, transfers and password generation show: `rclone not found. Please install rclone first on your system.`
-
-
 ## Transfer Progress and Errors
 
 During an upload or download, RZilla shows the latest transfer information, including transferred size, percentage, speed, and estimated time when rclone provides them.
@@ -273,7 +203,7 @@ When the transfer finishes, you receive a completion notification. If it fails, 
 
 ## Bug Reports and Feedback
 
-https://ceres-assistant.com/web/contact.php
+For bug reports, questions and feedback, open an issue on [GitHub Issues](https://github.com/libandreas/push-and-pull/issues).
 
 ## License
 

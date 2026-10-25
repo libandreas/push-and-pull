@@ -25,6 +25,9 @@
 	"version": "26.10.24",
 	"publisher": "pa-andreas",
 	"license": "GPL-3.0-or-later",
+	"bugs": {
+		"url": "https://github.com/libandreas/push-and-pull/issues"
+	},
 	"icon": "favicon-4.png",
 	"repository": {
 		"type": "git",
@@ -41,7 +44,6 @@
 		"Other"
 	],
 	"activationEvents": [
-		"onCommand:pushR.createConfiguration",
 		"onCommand:pushR.compareFile",
 		"onCommand:pushR.uploadFile",
 		"onCommand:pushR.downloadFile",
@@ -69,10 +71,6 @@
 			}
 		},
 		"commands": [
-			{
-				"command": "pushR.createConfiguration",
-				"title": "RZilla: Create Configuration"
-			},
 			{
 				"command": "pushR.compareFile",
 				"title": "Compare Online with Local",
